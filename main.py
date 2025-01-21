@@ -55,31 +55,43 @@ class CameraThread(QThread):
         self.running = True
         
         while self.running:
-            self.frame_start_time = time.time()
-            
-            ret, frame = self.cap.read()
-            if not ret:
-                self.send_black_frame()
-                break
-            
-            fps = self.cap.get(cv2.CAP_PROP_FPS)
-            self.model.change_fps(fps)
-            
-            result_img = self.model.model_run(frame, self.telegram_flag, self.skeleton_visualize_flag)
+            try:
+                self.frame_start_time = time.time()
                 
-            resized_frame = cv2.resize(result_img, (400, 300))
-            rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
-            h, w, ch = rgb_frame.shape
-            bytes_per_line = ch * w
-            qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
-            pixmap = QPixmap.fromImage(qt_image)
-            
-            processing_time = time.time() - self.frame_start_time
-            actual_fps = 1.0 / processing_time if processing_time > 0 else fps
-            
-            self.model.adjust_tracking_threshold(actual_fps)
-            
-            self.frame_signal.emit(pixmap, True)
+                ret, frame = self.cap.read()
+                if not ret:
+                    self.send_black_frame()
+                    break
+                
+                fps = self.cap.get(cv2.CAP_PROP_FPS)
+                self.model.change_fps(fps)
+                try:
+                    if self.model and hasattr(self.model, 'model_run'):
+                        result_img = self.model.model_run(frame, self.telegram_flag, self.skeleton_visualize_flag)
+                    else:
+                        print("AI 모델이 초기화되지 않았습니다.")
+                        result_img = frame
+                except Exception as e:
+                    print(f"AI 모델 실행 오류 발생: {(e)}")
+                    result_img = frame
+                resized_frame = cv2.resize(result_img, (400, 300))
+                rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
+                h, w, ch = rgb_frame.shape
+                bytes_per_line = ch * w
+                qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
+                pixmap = QPixmap.fromImage(qt_image)
+                
+                processing_time = time.time() - self.frame_start_time
+                actual_fps = 1.0 / processing_time if processing_time > 0 else fps
+                
+                self.model.adjust_tracking_threshold(actual_fps)
+                
+                self.frame_signal.emit(pixmap, True)
+            except Exception as e:
+                print(f"카메라 스레드 실행 중 오류 발생: {e}")
+                self.send_black_frame()
+                time.sleep(1)
+                
         self.cap.release()
         
     def send_black_frame(self):
@@ -400,48 +412,65 @@ class WindowClass(QMainWindow, form_class):
         self.open_camera_preview(camera_name)
         
     def add_camera(self):
-        port, ok = QInputDialog.getInt(self, "카메라 추가", "포트 번호를 입력하세요:", min=0, max=65535)
+        """카메라 추가"""
+        camera_name, ok = QInputDialog.getText(self, "카메라 추가", "카메라 이름을 입력하세요:")
+        if not ok or not camera_name.strip():
+            return
+        
+        if camera_name in self.video_labels:
+            QMessageBox.warning(self, "오류", "이미 존재하는 카메라 이름입니다.")
+            return
+        
+        # 카메라 포트 번호 입력 받기
+        port, ok = QInputDialog.getInt(self, "포트 설정", "카메라 포트 번호를 입력하세요:", min=0)
         if not ok:
             return
-
-        camera_name = f"Camera {len(self.video_labels) + 1}"
-
-        # 카메라 화면 레이블 생성
-        video_label = QLabel(f"{camera_name} - {port}")
-        video_label.setFixedSize(400, 300)
-        video_label.setAlignment(Qt.AlignCenter)
-        video_label.setStyleSheet("border: 1px solid black; background-color: #000; color: white;")
-        video_label.setContextMenuPolicy(Qt.CustomContextMenu)
-        
-        # 레이블에 이름 저장
-        video_label.camera_name = camera_name
-
-        # 연결
-        video_label.mouseDoubleClickEvent = lambda event: self.open_camera_preview(video_label.camera_name)
-        video_label.customContextMenuRequested.connect(
-            lambda pos, widget=video_label: self.handle_right_click(widget)
-        )
-        self.video_labels[camera_name] = video_label
-
-        # json 파일에 추가
-        self.setting.add_dict_json('camera_list', camera_name, port)
-        
-        # Grid Layout에 레이블 추가
-        self.grid_layout.addWidget(video_label, self.current_row, self.current_col)
-
-        # 다음 열/행 계산
-        self.current_col += 1
-        if self.current_col >= self.max_cols:
-            self.current_col = 0
-            self.current_row += 1
-
-        # 카메라 스레드 생성 및 시작
-        camera_thread = CameraThread(port, self.ai_conf, self.tr_th)
-        camera_thread.frame_signal.connect(lambda pixmap, available, name=camera_name: self.update_frame(name, pixmap, available))
-        self.camera_threads[camera_name] = camera_thread
-        camera_thread.start()
-        print(f"Added and started camera: {camera_name} with port {port}")
-
+            
+        try:
+            # 새로운 카메라 스레드 생성
+            camera_thread = CameraThread(port, self.ai_conf, self.tr_th)
+            camera_thread.frame_signal.connect(
+                lambda pixmap, available, name=camera_name: self.update_frame(name, pixmap, available)
+            )
+            
+            # UI 레이블 생성
+            video_label = QLabel()
+            video_label.setFixedSize(400, 300)
+            video_label.setAlignment(Qt.AlignCenter)
+            video_label.setText("카메라 연결을 확인해 주세요")
+            video_label.setStyleSheet("border: 1px solid black; background-color: #000; color: white;")
+            video_label.mousePressEvent = lambda event: self.handle_right_click(video_label) if event.button() == Qt.RightButton else None
+            video_label.mouseDoubleClickEvent = lambda event: self.open_camera_preview(camera_name)
+            video_label.camera_name = camera_name
+            
+            # 그리드에 레이블 추가
+            self.grid_layout.addWidget(video_label, self.current_row, self.current_col)
+            
+            # 다음 위치 계산
+            self.current_col += 1
+            if self.current_col >= self.max_cols:
+                self.current_col = 0
+                self.current_row += 1
+            
+            # 카메라 정보 저장
+            self.video_labels[camera_name] = video_label
+            self.camera_threads[camera_name] = camera_thread
+            
+            # JSON 파일에 카메라 정보 저장
+            self.setting.add_dict_json('camera_list', camera_name, port)
+            
+            # 카메라 스레드 시작
+            camera_thread.start()
+            
+        except Exception as e:
+            QMessageBox.warning(self, "오류", f"카메라 추가 중 오류 발생: {e}")
+            if camera_name in self.video_labels:
+                self.video_labels[camera_name].deleteLater()
+                del self.video_labels[camera_name]
+            if camera_name in self.camera_threads:
+                self.camera_threads[camera_name].stop()
+                del self.camera_threads[camera_name]
+    
     def handle_right_click(self, widget):
         """우클릭 이벤트 처리"""
         for name, label in self.video_labels.items():
