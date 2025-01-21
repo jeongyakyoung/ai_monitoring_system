@@ -22,9 +22,6 @@ form_class = uic.loadUiType(form)[0]
 form_telegram = resource_path('telegram.ui')
 form_telegram_window = uic.loadUiType(form_telegram)[0]
 
-form_camera = resource_path('camera_port.ui')
-form_camera_window = uic.loadUiType(form_camera)[0]
-
 form_model = resource_path('model_conf.ui')
 form_model_window = uic.loadUiType(form_model)[0]
 

@@ -11,6 +11,8 @@ import threading
 import os
 import sys
 from threading import Lock
+import atexit
+import time
 
 # Load the YOLO model
 class Messenger:
@@ -29,7 +31,8 @@ class Messenger:
             self.token = None
             self.chat_id = None
             self.initialized = True
-        
+            atexit.register(self.cleanup_images)
+            
     def set_telegram(self, token, chat_id):
         self.token = token # "7535814762:AAHmB72JRqiRcDxdyHrUoBtbuC573FhyXq0"
         self.chat_id = chat_id # "-4519677286"
@@ -39,18 +42,66 @@ class Messenger:
             raise ValueError("Telegram token or chat_id is not set.")
         
         async def main():
-            bot = telegram.Bot(self.token)
-            # await bot.send_message(chat_id=self.chat_id, text="hello")
-            await bot.send_photo(chat_id=self.chat_id, photo=open(img_path, 'rb'))
-            
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-        asyncio.run(main())
-        self.remove_file(img_path)
+            try:
+                bot = telegram.Bot(self.token)
+                with open(img_path, 'rb') as photo:
+                    await bot.send_photo(chat_id=self.chat_id, photo=photo)
+                print(f"이미지 전송 완료: {img_path}")
+            except Exception as e:
+                print(f"이미지 전송 중 오류 발생: {e}")
+            finally:
+                time.sleep(1)
+                self.remove_file(img_path)
+                
+        try:    
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+            asyncio.run(main())
+        except Exception as e:
+            print(f"비동기 실행 중 오류 발생: {e}")
+            self.remove_file(img_path)
     
     def remove_file(self, img_path):
-        if os.path.exists(img_path):
-            os.remove(img_path)
-        
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                if os.path.exists(img_path):
+                    os.remove(img_path)
+                    print(f"파일 삭제 완료: {img_path}")
+                    break
+            except Exception as e:
+                print(f"파일 삭제 중 오류 발생: {e}")
+                if attempt < max_attempts - 1:
+                    print(f"파일 삭제 실패, 재시도 중... 남은 시도 횟수: {max_attempts - attempt - 1}")
+                    time.sleep(0.2)
+                else:
+                    print(f"파일 삭제 실패, 최대 시도 횟수 도달: {img_path}")
+                    
+                
+    def cleanup_images(self):
+        """프로그램 종료 시 img 폴더의 falling 이미지들 정리"""
+        try:
+            if os.path.exists("img"):
+                for file in os.listdir("img"):
+                    if file.endswith(".jpg"):
+                        file_path = os.path.join("img", file)
+                        max_attempts = 3
+                        for attempt in range(max_attempts):
+                            try:
+                                if os.path.exists(file_path):
+                                    os.remove(file_path)
+                                    print(f"Cleanup: 남은 이미지 파일 삭제 - {file}")
+                                    break
+                            except Exception as e:
+                                print(f"Cleanup: 파일 삭제 실패 - {file}: {e}")
+                                if attempt < max_attempts - 1:
+                                    print(f"파일 삭제 실패, 재시도 중... 남은 시도 횟수: {max_attempts - attempt - 1}")
+                                    time.sleep(1.0)
+                                else:
+                                    print(f"파일 삭제 실패, 최대 시도 횟수 도달: {file_path}")
+                                    
+        except Exception as e:
+            print(f"Cleanup: 정리 중 오류 발생 - {e}")
+            
     def send_message(self, text):
         if not self.token or not self.chat_id:
             raise ValueError("Telegram token or chat_id is not set.")
