@@ -1,0 +1,109 @@
+/* QPushButton style */
+
+QMainWindow {
+    background-color: white;
+}
+
+QLabel{
+    font-family: 'Maple Story';
+}
+
+QRadioButton
+{
+    font-family: 'Maple Story';
+}
+
+/* 버튼 1 스타일 */
+QPushButton#telegram_enroll_btn {
+    font-family: 'Maple Story';
+    background-color: #5dade2; /* 밝은 파란색 배경 */
+    font-size: 35px; /* 텍스트 크기 */
+    border-radius: 10px solid #3498db; /* 테두리 */
+}
+
+QPushButton#telegram_enroll_btn:hover {
+    background-color: #3498db; /* 호버 상태: 진한 파란색 */
+}
+
+/* 버튼 2 스타일 */
+QPushButton#camera_add_btn {
+    font-family: 'Maple Story';
+    background-color: #DDA0DD; /* 밝은 녹색 배경 */
+    font-size: 35px; /* 텍스트 크기 */
+    border-radius: 10px solid #DA70D6; /* 테두리 */
+    padding: 10px;
+}
+
+QPushButton#camera_add_btn:hover {
+    background-color: #BA55D3; /* 호버 상태: 진한 녹색 */
+}
+
+/* 버튼 3 스타일 */
+QPushButton#ai_model_conf_btn {
+    font-family: 'Maple Story';
+    background-color: #f4d03f; /* 밝은 노란색 배경 */
+    font-size: 35px; /* 텍스트 크기 */
+    border-radius: 10px solid #f39c12; /* 테두리 */
+    padding: 10px;
+}
+
+QPushButton#ai_model_conf_btn:hover {
+    background-color: #f39c12; /* 호버 상태: 진한 노란색 */
+}
+
+
+QGroupBox#groupBox_main {
+    font-family: 'Maple Story';
+    border: 2px dashed  #3498db; /* 파란 테두리 */
+    background-color: white; /* 하얀 배경 */
+    border-radius: 10px
+}
+
+/* 특정 그룹박스 제목 스타일 */
+QGroupBox#groupBox_main::title {
+    font-family: 'Maple Story';
+    font-size: 20px;
+    font-weight: bold;
+}
+
+QGroupBox#groupBox_status {
+    font-family: 'Maple Story';
+    border: 2px dashed  #3498db; /* 파란 테두리 */
+    background-color: white; /* 하얀 배경 */
+    border-radius: 10px
+}
+
+/* 특정 그룹박스 제목 스타일 */
+QGroupBox#groupBox_status::title {
+    font-family: 'Maple Story';
+    font-size: 20px;
+    font-weight: bold;
+}
+
+QGroupBox#groupBox_telegram {
+    font-family: 'Maple Story';
+    border: 2px dashed  #3498db; /* 파란 테두리 */
+    background-color: white; /* 하얀 배경 */
+    border-radius: 10px
+}
+
+/* 특정 그룹박스 제목 스타일 */
+QGroupBox#groupBox_telegram::title {
+    font-family: 'Maple Story';
+    font-size: 20px;
+    font-weight: bold;
+}
+
+QGroupBox#groupBox_skeleton {
+    font-family: 'Maple Story';
+    border: 2px dashed  #3498db; /* 파란 테두리 */
+    background-color: white; /* 하얀 배경 */
+    border-radius: 10px
+}
+
+/* 특정 그룹박스 제목 스타일 */
+QGroupBox#groupBox_skeleton::title {
+    font-family: 'Maple Story';
+    font-size: 20px;
+    font-weight: bold;
+}
