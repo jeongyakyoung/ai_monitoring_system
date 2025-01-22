@@ -38,6 +38,7 @@ class Messenger:
         self.chat_id = chat_id # "-4519677286"
         
     def send_photo(self, img_path):
+        print("img_path", img_path)
         if not self.token or not self.chat_id:
             raise ValueError("Telegram token or chat_id is not set.")
         
@@ -394,6 +395,8 @@ class Detector:
             
             crop_img = img[y1:y2, x1:x2]
             save_img_path = f'crop_img_{timestamp}.jpg'
+            if not os.path.exists('img'):
+                os.makedirs('img', exist_ok=True)
             result_path = self.resource_path(os.path.join('img', save_img_path))
             
             cv2.imwrite(result_path, crop_img)
@@ -405,6 +408,8 @@ class Detector:
             timestamp = today.strftime('%Y%m%d_%H%M%S_%f')  # 밀리초까지 포함
             
             save_img_path = f'full_img_{timestamp}.jpg'
+            if not os.path.exists('img'):
+                os.makedirs('img', exist_ok=True)
             result_path = self.resource_path(os.path.join('img', save_img_path))
             
             cv2.imwrite(result_path, img)
