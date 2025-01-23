@@ -25,8 +25,6 @@ form_telegram_window = uic.loadUiType(form_telegram)[0]
 form_model = resource_path('model_conf.ui')
 form_model_window = uic.loadUiType(form_model)[0]
 
-#  TODO #
-# 1. telegram api 값과 id 값이 있으면 메세지 전송 버튼 자동 활성화 #
 
 class CameraThread(QThread):
     frame_signal = pyqtSignal(QPixmap, bool)
@@ -323,7 +321,14 @@ class WindowClass(QMainWindow, form_class):
         self.selected_camera = None
         
         self.init_camera_list()
-    
+        self.check_telegram_info()
+        
+    def check_telegram_info(self):
+        if self.api_token and self.chat_id:
+            self.telegram_active()
+        else:
+            self.telegram_unactive()
+            
     def update_json_value(self):
         self.json_data = self.setting.load_json()
         
@@ -699,8 +704,10 @@ class WindowClass(QMainWindow, form_class):
             QMessageBox.warning(self, "오류", "텔레그램 정보를 찾을 수 없습니다.")
             self.unactive_radio_btn.setChecked(True)
         else:
-            for camera_thread in self.camera_threads.values():
-                camera_thread.change_telegram_func(flag=True)
+            if len(self.video_labels) > 0:
+                for camera_thread in self.camera_threads.values():
+                    camera_thread.change_telegram_func(flag=True)
+                self.active_radio_btn.setChecked(True)
         
     def telegram_unactive(self):
         for camera_thread in self.camera_threads.values():
@@ -718,6 +725,7 @@ class WindowClass(QMainWindow, form_class):
         self.api_token = self.telegram_winodw_class.get_telegram_api_label()
         self.chat_id = self.telegram_winodw_class.get_telegram_id_label()
         self.messenger.set_telegram(self.api_token, self.chat_id)
+        self.check_telegram_info()
 
     def update_frame(self, camera_name, pixmap, available):
         if camera_name not in self.video_labels:
