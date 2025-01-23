@@ -25,6 +25,9 @@ form_telegram_window = uic.loadUiType(form_telegram)[0]
 form_model = resource_path('model_conf.ui')
 form_model_window = uic.loadUiType(form_model)[0]
 
+#  TODO #
+# 1. telegram api 값과 id 값이 있으면 메세지 전송 버튼 자동 활성화 #
+
 class CameraThread(QThread):
     frame_signal = pyqtSignal(QPixmap, bool)
     error_signal = pyqtSignal(str)
@@ -155,14 +158,17 @@ class TelegramwindowClass(QDialog, QWidget, form_telegram_window):
             self.telegram_api_label.setText("")
         else:
             self.telegram_api_label.setText(str(api))
-    
+        
     def set_telegram_id_label(self):
         id = self.json_data['telegram_bot_id']
         if id is None or id == "":
             self.telegram_id_label.setText("")
         else:
             self.telegram_id_label.setText(str(id))
-    
+        
+    # def enroll_telegram_info(self):
+    #     self.messenger.set_telegram(self.telegram_api_label.text(), self.telegram_id_label.text())
+        
     def get_telegram_api_label(self):
         return self.telegram_api_label.text()
     
@@ -288,10 +294,11 @@ class WindowClass(QMainWindow, form_class):
         self.ai_model_conf_btn.clicked.connect(self.open_model_conf_dialog)
         
         self.messenger = Messenger()
-        api_token = self.telegram_winodw_class.get_telegram_api_label()
-        chat_id = self.telegram_winodw_class.get_telegram_id_label()
-        if api_token and chat_id:
-            self.messenger.set_telegram(api_token, chat_id)
+        self.api_token = self.telegram_winodw_class.get_telegram_api_label()
+        self.chat_id = self.telegram_winodw_class.get_telegram_id_label()
+        
+        if self.api_token and self.chat_id:
+            self.messenger.set_telegram(self.api_token, self.chat_id)
             
         self.active_radio_btn.clicked.connect(self.telegram_active)
         self.unactive_radio_btn.clicked.connect(self.telegram_unactive)
@@ -708,6 +715,9 @@ class WindowClass(QMainWindow, form_class):
             
     def open_telegram_info_dialog(self):
         self.telegram_winodw_class.open()
+        self.api_token = self.telegram_winodw_class.get_telegram_api_label()
+        self.chat_id = self.telegram_winodw_class.get_telegram_id_label()
+        self.messenger.set_telegram(self.api_token, self.chat_id)
 
     def update_frame(self, camera_name, pixmap, available):
         if camera_name not in self.video_labels:
