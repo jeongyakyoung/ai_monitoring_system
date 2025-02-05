@@ -409,9 +409,12 @@ class Detector:
             today = datetime.datetime.now()
             timestamp = today.strftime('%Y%m%d_%H%M%S_%f')  # 밀리초까지 포함
             
+            img_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img")
+            
             save_img_path = f'full_img_{timestamp}.jpg'
-            if not os.path.exists('img'):
+            if not os.path.exists(img_folder):
                 os.makedirs('img', exist_ok=True)
+                
             result_path = self.resource_path(os.path.join('img', save_img_path))
             
             cv2.imwrite(result_path, img)
