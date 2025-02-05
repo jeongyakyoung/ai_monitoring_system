@@ -11,9 +11,8 @@ class FileController:
         json_string = {
             "telegram_api": None,
             "telegram_bot_id": None,
-            "camera_port_num": 0,
-            "ai_model_conf": 0.6,
-            "tracking_th": 30,
+            "ai_model_conf": 0.7,
+            "tracking_th": 3,
             "camera_list": {},
         }
         
