@@ -10,10 +10,11 @@ block_cipher = None
 site_packages_path = site.getsitepackages()[0]
 ultralytics_path = os.path.join(site_packages_path, 'ultralytics')
 
-# `datas` 리스트 수정 (Windows 경로 제거 및 상대 경로로 변경)
+# `datas` 리스트 수정 (필요한 파일 추가)
 datas = [
     ('main.ui', '.'), 
     ('model_conf.ui', '.'), 
+    ('img', 'img'),
     ('telegram.ui', '.'), 
     ('style/*', 'style/'), 
     ('style/cursor/*', 'style/cursor/'), 
@@ -22,7 +23,7 @@ datas = [
     ('setting.py', '.'), 
     ('yolo11n-pose_safety.pt', '.'), 
     ('ai.ico', '.'), 
-    (ultralytics_path, 'ultralytics/')
+    (ultralytics_path, 'ultralytics/')  # Ultralytics 패키지 포함
 ]
 
 a = Analysis(
@@ -30,9 +31,14 @@ a = Analysis(
     pathex=sys.path,  # 시스템 Python 경로 자동 추가
     binaries=[],
     datas=datas,
-    hiddenimports=['scipy.special.cython_special', 'scipy.special._cdflib'],
+    hiddenimports=[
+        'scipy.special.cython_special',
+        'scipy.special._cdflib',
+        'cv2',
+        'numpy',
+        'asyncio'
+    ],
     hookspath=[],
-    hooksconfig={},
     runtime_hooks=[],
     excludes=[],
     win_no_prefer_redirects=False,
@@ -48,7 +54,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='AI Safety Monitoring',
+    name='AI_Safety_Monitoring',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
