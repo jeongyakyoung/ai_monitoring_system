@@ -55,7 +55,8 @@ class Messenger:
                 self.remove_file(img_path)
                 
         try:    
-            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+            if sys.platform.startswith("win"):
+                asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
             asyncio.run(main())
         except Exception as e:
             print(f"비동기 실행 중 오류 발생: {e}")
@@ -109,8 +110,9 @@ class Messenger:
         async def main():
             bot = telegram.Bot(self.token)
             await bot.send_message(chat_id=self.chat_id, text=text)
-            
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        
+        if sys.platform.startswith("win"):
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         asyncio.run(main())
         
 class Detector:
