@@ -396,10 +396,14 @@ class Detector:
             timestamp = today.strftime('%Y%m%d_%H%M%S_%f')  # 밀리초까지 포함
             
             crop_img = img[y1:y2, x1:x2]
+            
+            img_folder = self.resource_path("img")
+            
+            os.makedirs(img_folder, exist_ok=True)
+            
             save_img_path = f'crop_img_{timestamp}.jpg'
-            if not os.path.exists('img'):
-                os.makedirs('img', exist_ok=True)
-            result_path = self.resource_path(os.path.join('img', save_img_path))
+          
+            result_path = os.path.join(img_folder, save_img_path)
             
             cv2.imwrite(result_path, crop_img)
             return result_path
@@ -409,13 +413,13 @@ class Detector:
             today = datetime.datetime.now()
             timestamp = today.strftime('%Y%m%d_%H%M%S_%f')  # 밀리초까지 포함
             
-            img_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img")
+            img_folder = self.resource_path("img")
+            
+            os.makedirs(img_folder, exist_ok=True)
             
             save_img_path = f'full_img_{timestamp}.jpg'
-            if not os.path.exists(img_folder):
-                os.makedirs('img', exist_ok=True)
                 
-            result_path = self.resource_path(os.path.join('img', save_img_path))
+            result_path = os.path.join(img_folder, save_img_path)
             
             cv2.imwrite(result_path, img)
             return result_path
