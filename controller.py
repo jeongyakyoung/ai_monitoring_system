@@ -13,6 +13,7 @@ import sys
 from threading import Lock
 import atexit
 import time
+import gc
 
 # Load the YOLO model
 class Messenger:
@@ -139,12 +140,15 @@ class Messenger:
         self.send_photo(result_path)
             
 class Detector:
-    def __new__(cls, conf, th, fps):
-        if not hasattr(cls, 'instance'):
-            cls.instance = super(Detector, cls).__new__(cls)
-        return cls.instance
+    _instance = None
     
-    def __init__(self, conf, th, fps) -> None:
+    def __new__(cls, conf, th, fps):
+        if cls._instance is None:
+            cls._instance = super(Detector, cls).__new__(cls)
+            cls._instance.init_detector(conf, th, fps)  #  초기화 실행
+        return cls._instance
+    
+    def init_detector(self, conf, th, fps) -> None:
         self.telegram = Messenger()
         self.model = None
         self.cap = None
@@ -190,6 +194,24 @@ class Detector:
                             ('chest', 11), ('chest', 12),               # 가슴에서 엉덩이로
                             ('chest', 0)                                # 가슴에서 목으로
                             ]
+    
+    def set_model(self, model_path="./yolo11n-pose_safety.pt"):
+        try:
+            if not os.path.exists(model_path):
+                raise FileNotFoundError(f"🚨 모델 파일이 존재하지 않습니다: {model_path}")
+
+            self.model = YOLO(model_path)
+
+            if self.model is None:
+                raise RuntimeError("🚨 YOLO 모델 로드 실패: 모델이 None 상태입니다.")
+
+            print("✅ YOLO 모델 로드 성공!")
+
+        except Exception as e:
+            print(f"🚨 YOLO 모델 로드 실패: {e}")
+            self.model = None  # 🚨 모델이 None 상태라면 유지하지 않도록 설정
+            raise RuntimeError(f"YOLO 모델을 로드할 수 없습니다: {e}")  # ✅ 오류 발생 시 예외 던지기
+
     
     def adjust_tracking_threshold(self, actual_fps):
         self.tracking_th = int(self.original_th * actual_fps)
@@ -290,8 +312,21 @@ class Detector:
         if len(track) > 30: # 최대 30개의 좌표만 저장
             track.pop(0)
     
+    def reset_tracking(self):
+        """🔄 일정 주기마다 트래커 데이터 초기화"""
+        print("강제 트래커 초기화!")
+        self.track_history.clear()
+        self.continuous_count.clear()
+        
     def predict(self, frame, telegram_flag=True, visualize_falg=True):
-        results = self.model.track(frame, conf=self.model_conf, persist=True, verbose=False)
+        if len(self.track_history) > 5000:
+            print("Tracker Reset: YOLO 객체 추적 초기화")
+            results = self.model.track(frame, conf=self.model_conf, persist=True, tracker=None, verbose=False)
+            self.reset_tracking()
+            
+        else:
+            results = self.model.track(frame, conf=self.model_conf, persist=True, verbose=False)
+            
         self.origin_img = copy.deepcopy(frame) #results[0].orig_img
         keypoints = results[0].keypoints
         boxes = results[0].boxes
@@ -362,7 +397,9 @@ class Detector:
                 
             else:
                 self.draw_normal_result(self.origin_img, x1, y1, x2, y2)
-                
+        
+        gc.collect()
+        
         return self.origin_img
     
     def visualize_skeleton_bbox(self, boxes, keypoints, mode=False):
@@ -455,6 +492,9 @@ class Detector:
     def model_run(self, frame, telegram_flag, visualize_flag):
         resize_frame = cv2.resize(frame, dsize=(self.model_img_w, self.model_img_h), interpolation=cv2.INTER_LINEAR)
         result_img = self.predict(resize_frame, telegram_flag, visualize_flag)
+        
+        gc.collect()
+        
         return result_img
     
     def run(self):

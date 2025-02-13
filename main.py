@@ -12,6 +12,8 @@ from setting import FileController
 from PyQt5.QtCore import QFile, QTextStream, pyqtSignal
 from functools import partial
 import time
+import gc
+
 def resource_path(relative_path):
     base_path = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base_path, relative_path)
@@ -30,7 +32,7 @@ class CameraThread(QThread):
     frame_signal = pyqtSignal(QPixmap, bool)
     error_signal = pyqtSignal(str)
 
-    def __init__(self, port, ai_conf, tr_th):
+    def __init__(self, port, ai_conf, tr_th, messenger):
         super().__init__()
         self.port = port
         self.running = False
@@ -38,15 +40,31 @@ class CameraThread(QThread):
         self.fps = 30
         self.frame_start_time = None
         
-        self.telegram_flag = False
+        self.telegram_flag = True
         self.skeleton_visualize_flag = True
         self.model = Detector(ai_conf, tr_th, self.fps)
         
-        self.messenger = Messenger()
+        self.messenger = messenger
         
+        try:
+            self.model = Detector(ai_conf, tr_th, self.fps)
+            
+            # ✅ 모델이 None이면 실행 중지
+            if self.model.model is None:
+                raise RuntimeError("🚨 AI 모델 초기화 실패! YOLO 모델이 로드되지 않았습니다.")
+            
+        except Exception as e:
+            print(f"🚨 AI 모델 초기화 오류: {e}")
+            self.error_signal.emit(f"AI 모델 초기화 실패: {e}")
+            self.model = None
+            return  # ✅ 초기화 실패 시 실행 중단
+            
     def run(self):
-        #Todo : 옆 제안 의견 반영하여 실제 초 단위 계산으로 변경
+        if self.model is None or self.model.model is None:
+            print("🚨 YOLO 모델이 로드되지 않음. 카메라 실행 중단.")
+            return
         self.cap = cv2.VideoCapture(self.port)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             
         if not self.cap.isOpened():
             # If the camera is not available, send a black frame
@@ -54,6 +72,7 @@ class CameraThread(QThread):
             return
 
         self.running = True
+        frame_count = 0
         
         while self.running:
             try:
@@ -75,6 +94,9 @@ class CameraThread(QThread):
                 except Exception as e:
                     print(f"AI 모델 실행 오류 발생: {(e)}")
                     result_img = frame
+                    
+                gc.collect()
+                
                 resized_frame = cv2.resize(result_img, (400, 300))
                 rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
                 h, w, ch = rgb_frame.shape
@@ -88,6 +110,13 @@ class CameraThread(QThread):
                 self.model.adjust_tracking_threshold(actual_fps)
                 
                 self.frame_signal.emit(pixmap, True)
+                
+                frame_count += 1
+                if frame_count >= 5000 == 0:
+                    self.model.reset_tracking()
+                    frame_count = 0
+                    time.sleep(1)
+                    
             except Exception as e:
                 print(f"카메라 스레드 실행 중 오류 발생: {e}")
                 self.send_black_frame()
@@ -415,7 +444,7 @@ class WindowClass(QMainWindow, form_class):
                     self.current_row += 1
 
                 # 카메라 스레드 생성 및 시작
-                camera_thread = CameraThread(port, self.ai_conf, self.tr_th)
+                camera_thread = CameraThread(port, self.ai_conf, self.tr_th, self.messenger)
                 camera_thread.frame_signal.connect(lambda pixmap, available, name=camera_name: self.update_frame(name, pixmap, available))
                 self.camera_threads[camera_name] = camera_thread
                 camera_thread.start()
@@ -445,7 +474,11 @@ class WindowClass(QMainWindow, form_class):
             
         try:
             # 새로운 카메라 스레드 생성
-            camera_thread = CameraThread(port, self.ai_conf, self.tr_th)
+            camera_thread = CameraThread(port, self.ai_conf, self.tr_th, self.messenger)
+            if camera_thread.model is None or camera_thread.model.model is None:
+                QMessageBox.warning(self, "오류", "AI 모델을 로드할 수 없습니다. 모델 파일을 확인하세요.")
+                return
+
             camera_thread.frame_signal.connect(
                 lambda pixmap, available, name=camera_name: self.update_frame(name, pixmap, available)
             )
@@ -558,7 +591,7 @@ class WindowClass(QMainWindow, form_class):
         if ok:
             camera_thread = self.camera_threads[self.selected_camera]
             camera_thread.stop()  # 기존 스레드 종료
-            new_thread = CameraThread(new_port, self.ai_conf, self.tr_th)
+            new_thread = CameraThread(new_port, self.ai_conf, self.tr_th, self.messenger)
             new_thread.frame_signal.connect(lambda pixmap, available, name=self.selected_camera: self.update_frame(name, pixmap, available))
             self.camera_threads[self.selected_camera] = new_thread
             new_thread.start()
