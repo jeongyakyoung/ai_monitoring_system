@@ -107,6 +107,25 @@
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="telegram_test_btn">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>50</height>
+         </size>
+        </property>
+        <property name="font">
+         <font>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>텔레그램 통신 테스트</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QPushButton" name="ai_model_conf_btn">
         <property name="minimumSize">
          <size>
@@ -328,7 +347,7 @@
      <x>0</x>
      <y>0</y>
      <width>1850</width>
-     <height>21</height>
+     <height>26</height>
     </rect>
    </property>
   </widget>
