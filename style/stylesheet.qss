@@ -51,6 +51,18 @@ QPushButton#ai_model_conf_btn:hover {
     background-color: #f39c12; /* 호버 상태: 진한 노란색 */
 }
 
+/* 버튼 4 스타일 */
+QPushButton#telegram_test_btn {
+    font-family: 'Maple Story';
+    background-color: #ADFF2F;
+    font-size: 35px; /* 텍스트 크기 */
+    border-radius: 10px solid #7FFF00;
+    padding: 10px;
+}
+
+QPushButton#telegram_test_btn:hover {
+    background-color: #7CFC00;
+}
 
 QGroupBox#groupBox_main {
     font-family: 'Maple Story';

@@ -114,7 +114,30 @@ class Messenger:
         if sys.platform.startswith("win"):
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         asyncio.run(main())
+    
+    def resource_path(self, relative_path):
+        base_path = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+        return os.path.join(base_path, relative_path)
+    
+    def test_telegram_msg(self):
+        today = datetime.datetime.now()
+        timestamp = today.strftime('%Y%m%d_%H%M%S_%f')  # 밀리초까지 포함
         
+        label = "Test telegram"
+        test_img = np.zeros((480, 640, 3))
+        test_img_h, test_img_w, _ = test_img.shape
+        cv2.putText(test_img, label, (test_img_w//2, test_img_h//2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+        
+        img_folder = self.resource_path("img")
+        os.makedirs(img_folder, exist_ok=True)
+        
+        save_img_path = f'test_img_{timestamp}.jpg'
+        result_path = os.path.join(img_folder, save_img_path)
+        
+        cv2.imwrite(result_path, test_img)
+        
+        self.send_photo(result_path)
+            
 class Detector:
     def __new__(cls, conf, th, fps):
         if not hasattr(cls, 'instance'):
@@ -389,7 +412,7 @@ class Detector:
                         
     def _make_img_folder(self):
         os.makedirs('img', exist_ok=True)
-        
+            
     def save_falling_img(self, img, x1, y1, x2, y2):
         with self.file_lock:  # Lock을 사용하여 파일 접근 동기화
             today = datetime.datetime.now()

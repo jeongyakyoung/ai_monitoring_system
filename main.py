@@ -307,6 +307,8 @@ class WindowClass(QMainWindow, form_class):
         self.camera_add_btn.clicked.connect(self.add_camera)
         self.camera_data = self.json_data['camera_list']
         
+        self.telegram_test_btn.clicked.connect(self.test_telegram)
+        
         self.ai_conf = self.json_data['ai_model_conf']
         self.tr_th = self.json_data['tracking_th']
         
@@ -322,6 +324,9 @@ class WindowClass(QMainWindow, form_class):
         
         self.init_camera_list()
         self.check_telegram_info()
+    
+    def test_telegram(self):
+        self.messenger.test_telegram_msg()
         
     def check_telegram_info(self):
         if self.api_token and self.chat_id:
