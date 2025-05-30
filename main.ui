@@ -162,6 +162,25 @@
         </property>
        </widget>
       </item>
+      <item>
+       <widget class="QPushButton" name="alarm_btn">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>50</height>
+         </size>
+        </property>
+        <property name="font">
+         <font>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>경보 멈춤</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
     <widget class="QGroupBox" name="groupBox_skeleton">

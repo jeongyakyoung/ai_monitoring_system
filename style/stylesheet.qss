@@ -64,6 +64,19 @@ QPushButton#telegram_test_btn:hover {
     background-color: #7CFC00;
 }
 
+/* 버튼 5 스타일 */
+QPushButton#alarm_btn {
+    font-family: 'Maple Story';
+    background-color: #ff4f78;
+    font-size: 35px; /* 텍스트 크기 */
+    border-radius: 10px solid #fa2a5a;
+    padding: 10px;
+}
+
+QPushButton#alarm_btn:hover {
+    background-color: #f7053d;
+}
+
 QGroupBox#groupBox_main {
     font-family: 'Maple Story';
     border: 2px dashed  #3498db; /* 파란 테두리 */

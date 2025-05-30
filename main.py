@@ -13,6 +13,8 @@ from PyQt5.QtCore import QFile, QTextStream, pyqtSignal
 from functools import partial
 import time
 import gc
+import RPi.GPIO as GPIO
+
 
 def resource_path(relative_path):
     base_path = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
@@ -27,14 +29,17 @@ form_telegram_window = uic.loadUiType(form_telegram)[0]
 form_model = resource_path('model_conf.ui')
 form_model_window = uic.loadUiType(form_model)[0]
 
+GPIO.setMode(GPIO.BCM)
+GPIO.setup(21, GPIO.OUT)
+GPIO.output(21, GPIO.HIGH) # test
 
-class CameraThread(QThread):
+class CameraThread(QThread): # rtsp 방식으로 변경 필요
     frame_signal = pyqtSignal(QPixmap, bool)
     error_signal = pyqtSignal(str)
 
     def __init__(self, port, ai_conf, tr_th, messenger):
         super().__init__()
-        self.port = port
+        self.port = port # IDIS 카메라 예시: "rtsp://admin:1234@192.168.0.101:554/trackID=2"
         self.running = False
         self.cap = None
         self.fps = 30
@@ -106,7 +111,7 @@ class CameraThread(QThread):
                 
                 processing_time = time.time() - self.frame_start_time
                 actual_fps = 1.0 / processing_time if processing_time > 0 else fps
-                
+            
                 self.model.adjust_tracking_threshold(actual_fps)
                 
                 self.frame_signal.emit(pixmap, True)
@@ -324,6 +329,8 @@ class WindowClass(QMainWindow, form_class):
         self.api_token = self.telegram_winodw_class.get_telegram_api_label()
         self.chat_id = self.telegram_winodw_class.get_telegram_id_label()
         
+        self.alarm_btn.clicked.connect(self.pause_alarm) # 라즈베리파이 경광등 종료
+        
         if self.api_token and self.chat_id:
             self.messenger.set_telegram(self.api_token, self.chat_id)
             
@@ -354,6 +361,11 @@ class WindowClass(QMainWindow, form_class):
         self.init_camera_list()
         self.check_telegram_info()
     
+    def pause_alarm(self):
+        QMessageBox.information(self, "경보", "경보 종료")
+        GPIO.output(21, GPIO.LOW)
+        # 라즈베리파이 종료 signal 전송
+        
     def test_telegram(self):
         self.messenger.test_telegram_msg()
         
