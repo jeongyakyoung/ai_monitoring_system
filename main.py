@@ -29,7 +29,7 @@ form_telegram_window = uic.loadUiType(form_telegram)[0]
 form_model = resource_path('model_conf.ui')
 form_model_window = uic.loadUiType(form_model)[0]
 
-h = lgpio.gpiochip_open("gpiochip4")
+h = lgpio.Chip('gpiochip4')
 lgpio.gpio_claim_output(h, 21, 1)
 
 class CameraThread(QThread): # rtsp 방식으로 변경 필요
@@ -798,3 +798,4 @@ if __name__ == '__main__':
     main_window = WindowClass()
     main_window.show()
     app.exec_()
+    lgpio.gpiochip_close(h)
