@@ -13,7 +13,7 @@ from PyQt5.QtCore import QFile, QTextStream, pyqtSignal
 from functools import partial
 import time
 import gc
-import lgpio
+from gpiozero import LED
 
 
 def resource_path(relative_path):
@@ -29,8 +29,8 @@ form_telegram_window = uic.loadUiType(form_telegram)[0]
 form_model = resource_path('model_conf.ui')
 form_model_window = uic.loadUiType(form_model)[0]
 
-h = lgpio.Chip('gpiochip4')
-lgpio.gpio_claim_output(h, 21, 1)
+relay = LED(21)
+relay.on()
 
 class CameraThread(QThread): # rtsp 방식으로 변경 필요
     frame_signal = pyqtSignal(QPixmap, bool)
@@ -362,7 +362,7 @@ class WindowClass(QMainWindow, form_class):
     
     def pause_alarm(self):
         QMessageBox.information(self, "경보", "경보 종료")
-        lgpio.gpio_claim_output(h, 21, 1)
+        relay.off()
         # 라즈베리파이 종료 signal 전송
         
     def test_telegram(self):
