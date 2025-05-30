@@ -13,7 +13,7 @@ from PyQt5.QtCore import QFile, QTextStream, pyqtSignal
 from functools import partial
 import time
 import gc
-import gpiozero
+from  gpiozero import OutputDevice
 
 
 def resource_path(relative_path):
@@ -29,7 +29,7 @@ form_telegram_window = uic.loadUiType(form_telegram)[0]
 form_model = resource_path('model_conf.ui')
 form_model_window = uic.loadUiType(form_model)[0]
 
-relay = gpiozero.OutputDevice(21, active_high=True, initial_value=False)
+relay = OutputDevice(21)
 relay.on()
 
 class CameraThread(QThread): # rtsp 방식으로 변경 필요
@@ -798,4 +798,3 @@ if __name__ == '__main__':
     main_window = WindowClass()
     main_window.show()
     app.exec_()
-    lgpio.gpiochip_close(h)
