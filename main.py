@@ -29,7 +29,7 @@ form_telegram_window = uic.loadUiType(form_telegram)[0]
 form_model = resource_path('model_conf.ui')
 form_model_window = uic.loadUiType(form_model)[0]
 
-relay = OutputDevice(21, active_high=False, initial_value=False)
+relay = OutputDevice(21, active_high=True, initial_value=False)
 relay.on()
 
 class CameraThread(QThread): # rtsp 방식으로 변경 필요
