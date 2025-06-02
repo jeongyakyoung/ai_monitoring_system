@@ -44,3 +44,4 @@ tzdata==2025.1
 ultralytics==8.3.70
 ultralytics-thop==2.0.14
 urllib3==2.3.0
+rpi-lgpio==0.6
