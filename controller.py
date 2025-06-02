@@ -20,10 +20,14 @@ class WarningLight:
     def __new__(cls):
         if not hasattr(cls, 'instance'):
             cls.instance = super(WarningLight, cls).__new__(cls)
+            cls._initialized = False
         return cls.instance
     
     def __init__(self, pin_num=21):
+        if self.__class__._initialized:
+            return
         self.relay = OutputDevice(pin_num, active_high=True, initial_value=False)
+        self.__class__._initialized = True
         
     def on(self):
         self.relay.on()
