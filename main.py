@@ -361,8 +361,8 @@ class WindowClass(QMainWindow, form_class):
         self.check_telegram_info()
     
     def pause_alarm(self):
-        QMessageBox.information(self, "경보", "경보 종료")
         relay.off()
+        QMessageBox.information(self, "경보", "경보 종료")
         # 라즈베리파이 종료 signal 전송
         
     def test_telegram(self):
