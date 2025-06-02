@@ -14,7 +14,23 @@ from threading import Lock
 import atexit
 import time
 import gc
+from  gpiozero import OutputDevice
 
+class WarningLight:
+    def __new__(cls):
+        if not hasattr(cls, 'instance'):
+            cls.instance = super(WarningLight, cls).__new__(cls)
+        return cls.instance
+    
+    def __init__(self, pin_num=21):
+        self.relay = OutputDevice(pin_num, active_high=True, initial_value=False)
+        
+    def on(self):
+        self.relay.on()
+    
+    def off(self):
+        self.relay.off()
+        
 # Load the YOLO model
 class Messenger:
     _instance = None
@@ -194,7 +210,9 @@ class Detector:
                             ('chest', 11), ('chest', 12),               # 가슴에서 엉덩이로
                             ('chest', 0)                                # 가슴에서 목으로
                             ]
-    
+        
+        self.warning_light = WarningLight()
+        
     def set_model(self, model_path="./yolo11n-pose_safety.pt"):
         try:
             if not os.path.exists(model_path):
@@ -302,7 +320,8 @@ class Detector:
                 del(self.track_history[track_id])
                 img_path = self.save_falling_img(frame, x1, y1, x2, y2)
                 full_img_path = self.save_full_img(self.origin_img)
- 
+                self.warning_light.on()
+                
                 if telegram_flag:
                     telegram_thread_crop = threading.Thread(target=self.telegram.send_photo, args=(img_path,), daemon=True)
                     telegram_thread_crop.start()

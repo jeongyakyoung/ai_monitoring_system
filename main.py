@@ -7,13 +7,12 @@ from PyQt5.QtCore import pyqtSignal as Signal, pyqtSlot as Slot
 import sys
 from PyQt5.QtWidgets import QWidget
 import cv2
-from controller import Detector, Messenger
+from controller import Detector, Messenger, WarningLight
 from setting import FileController
 from PyQt5.QtCore import QFile, QTextStream, pyqtSignal
 from functools import partial
 import time
 import gc
-from  gpiozero import OutputDevice
 
 
 def resource_path(relative_path):
@@ -28,9 +27,6 @@ form_telegram_window = uic.loadUiType(form_telegram)[0]
 
 form_model = resource_path('model_conf.ui')
 form_model_window = uic.loadUiType(form_model)[0]
-
-relay = OutputDevice(21, active_high=True, initial_value=False)
-relay.on()
 
 class CameraThread(QThread): # rtsp 방식으로 변경 필요
     frame_signal = pyqtSignal(QPixmap, bool)
@@ -328,6 +324,7 @@ class WindowClass(QMainWindow, form_class):
         self.api_token = self.telegram_winodw_class.get_telegram_api_label()
         self.chat_id = self.telegram_winodw_class.get_telegram_id_label()
         
+        self.warning_light = WarningLight()
         self.alarm_btn.clicked.connect(self.pause_alarm) # 라즈베리파이 경광등 종료
         
         if self.api_token and self.chat_id:
@@ -361,9 +358,8 @@ class WindowClass(QMainWindow, form_class):
         self.check_telegram_info()
     
     def pause_alarm(self):
-        relay.off()
+        self.warning_light.off()
         QMessageBox.information(self, "경보", "경보 종료")
-        # 라즈베리파이 종료 signal 전송
         
     def test_telegram(self):
         self.messenger.test_telegram_msg()
