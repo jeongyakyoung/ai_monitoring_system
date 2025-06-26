@@ -28,11 +28,22 @@ class WarningLight:
             return
         self.relay = OutputDevice(pin_num, active_high=True, initial_value=False)
         self.__class__._initialized = True
+        self._off_timer = None
         
-    def on(self):
+    def on(self, auto_off_seconds=30):
         self.relay.on()
+        
+        if self._off_timer and self._off_timer.is_alive():
+            self._off_timer.cancel()
+        
+        self._off_timer = threading.Timer(auto_off_seconds, self.off)
+        self._off_timer.start()
     
     def off(self):
+        if self._off_timer and self._off_timer.is_alive():
+            self._off_timer.cancel()
+            
+        self._off_timer = None
         self.relay.off()
         
 # Load the YOLO model
