@@ -37,19 +37,26 @@ import gc
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
 from PyQt5.QtGui import QImage, QPixmap, QColor, QPainter
 
+import subprocess
+import numpy as np
+import cv2
+import time
+import gc
+
+from PyQt5.QtCore import QThread, pyqtSignal, Qt
+from PyQt5.QtGui import QImage, QPixmap, QColor, QPainter
+
 class CameraThread(QThread):
     frame_signal = pyqtSignal(QPixmap, bool)
     error_signal = pyqtSignal(str)
 
     def __init__(self, port, ai_conf, tr_th, messenger):
         super().__init__()
-        
-        # RTSP URL 직접 지정
-        self.rtsp_url = "rtsp://admin:Cctv8324%21@192.168.1.101:554/trackID=1"
 
-        # 기본 해상도 설정 (ffmpeg frame resize 성능 최적)
-        self.width, self.height = 400, 300
-        self.frame_size = self.width * self.height * 3  # bgr24
+        self.rtsp_url = "rtsp://admin:Cctv8324%21@192.168.1.101:554/trackID=1"
+        self.width = None
+        self.height = None
+        self.frame_size = None
 
         self.running = False
         self.fps = 30
@@ -69,17 +76,40 @@ class CameraThread(QThread):
             self.model = None
             return
 
+        self.detect_camera_resolution()
+
+    def detect_camera_resolution(self):
+        """ffprobe를 이용해 해상도 자동 감지"""
+        try:
+            cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=width,height",
+                "-of", "csv=p=0",
+                self.rtsp_url
+            ]
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            width_str, height_str = result.stdout.strip().split(',')
+            self.width = int(width_str)
+            self.height = int(height_str)
+            self.frame_size = self.width * self.height * 3
+            print(f"[INFO] 감지된 해상도: {self.width} x {self.height}")
+        except Exception as e:
+            print(f"[ERROR] 해상도 감지 실패: {e}")
+            self.width, self.height = 400, 300
+            self.frame_size = self.width * self.height * 3
+            self.error_signal.emit("카메라 해상도 감지 실패. 기본 해상도 사용.")
+
     def run(self):
         if self.model is None or self.model.model is None:
             print("🚨 YOLO 모델이 로드되지 않음. 카메라 실행 중단.")
             return
 
-        # ffmpeg subprocess 파이프 열기
         cmd = [
             "ffmpeg",
             "-rtsp_transport", "tcp",
             "-i", self.rtsp_url,
-            "-s", f"{self.width}x{self.height}",  # 강제 크기 설정
             "-f", "image2pipe",
             "-pix_fmt", "bgr24",
             "-vcodec", "rawvideo",
@@ -105,7 +135,7 @@ class CameraThread(QThread):
                     raise RuntimeError("프레임 크기 불일치 또는 스트림 중단")
 
                 frame = np.frombuffer(raw_frame, np.uint8).reshape((self.height, self.width, 3))
-                self.model.change_fps(self.fps)  # ffmpeg FPS는 수동 지정
+                self.model.change_fps(self.fps)
 
                 try:
                     result_img = self.model.model_run(frame, self.telegram_flag, self.skeleton_visualize_flag)
@@ -115,7 +145,8 @@ class CameraThread(QThread):
 
                 gc.collect()
 
-                rgb_frame = cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB)
+                resized_frame = cv2.resize(result_img, (400, 300))
+                rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
                 h, w, ch = rgb_frame.shape
                 bytes_per_line = ch * w
                 qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
@@ -134,7 +165,7 @@ class CameraThread(QThread):
                     time.sleep(1)
 
             except Exception as e:
-                print(f"카메라 스레드 오류: {e}")
+                print(f"[ERROR] 카메라 스레드 오류: {e}")
                 self.send_black_frame()
                 time.sleep(1)
 
@@ -142,7 +173,7 @@ class CameraThread(QThread):
 
     def send_black_frame(self):
         """Send a black frame with a 'Camera Unavailable' message."""
-        black_image = QImage(self.width, self.height, QImage.Format_RGB888)
+        black_image = QImage(400, 300, QImage.Format_RGB888)
         black_image.fill(QColor('black'))
         painter = QPainter(black_image)
         painter.setPen(QColor('white'))
