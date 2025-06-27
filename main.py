@@ -55,6 +55,17 @@ import gc
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
 from PyQt5.QtGui import QImage, QPixmap, QColor, QPainter
 
+import subprocess
+import numpy as np
+import cv2
+import time
+import gc
+from threading import Thread
+from queue import Queue, Empty
+
+from PyQt5.QtCore import QThread, pyqtSignal, Qt
+from PyQt5.QtGui import QImage, QPixmap, QColor, QPainter
+
 class CameraThread(QThread):
     frame_signal = pyqtSignal(QPixmap, bool)
     error_signal = pyqtSignal(str)
@@ -63,13 +74,13 @@ class CameraThread(QThread):
         super().__init__()
 
         self.rtsp_url = "rtsp://admin:Cctv8324%21@192.168.1.101:554/trackID=1"
-        self.width = None
-        self.height = None
-        self.frame_size = None
+        self.width = 640
+        self.height = 360
+        self.frame_size = self.width * self.height * 3
 
-        self.running = False
         self.fps = 30
-        self.frame_start_time = None
+        self.running = False
+        self.frame_queue = Queue(maxsize=1)
 
         self.telegram_flag = True
         self.skeleton_visualize_flag = True
@@ -78,101 +89,69 @@ class CameraThread(QThread):
         try:
             self.model = Detector(ai_conf, tr_th, self.fps)
             if self.model.model is None:
-                raise RuntimeError("🚨 AI 모델 초기화 실패! YOLO 모델이 로드되지 않았습니다.")
+                raise RuntimeError("YOLO 모델 로드 실패")
         except Exception as e:
-            print(f"🚨 AI 모델 초기화 오류: {e}")
             self.error_signal.emit(f"AI 모델 초기화 실패: {e}")
             self.model = None
             return
 
-        self.detect_camera_resolution()
-
-    def detect_camera_resolution(self):
-        """ffprobe를 이용해 해상도 자동 감지"""
-        try:
+    def start_frame_reader(self):
+        def reader_loop():
             cmd = [
-                "ffprobe",
-                "-v", "error",
-                "-select_streams", "v:0",
-                "-show_entries", "stream=width,height",
-                "-of", "csv=p=0",
-                self.rtsp_url
+                "ffmpeg",
+                "-rtsp_transport", "tcp",
+                "-fflags", "nobuffer",
+                "-flags", "low_delay",
+                "-an",
+                "-i", self.rtsp_url,
+                "-vf", "scale=640:360",                # 해상도 축소 추가
+                "-f", "image2pipe",
+                "-pix_fmt", "bgr24",
+                "-vcodec", "rawvideo",
+                "-"
             ]
-            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            width_str, height_str = result.stdout.strip().split(',')
-            self.width = int(width_str)
-            self.height = int(height_str)
-            self.frame_size = self.width * self.height * 3
-            print(f"[INFO] 감지된 해상도: {self.width} x {self.height}")
-        except Exception as e:
-            print(f"[ERROR] 해상도 감지 실패: {e}")
-            self.width, self.height = 400, 300
-            self.frame_size = self.width * self.height * 3
-            self.error_signal.emit("카메라 해상도 감지 실패. 기본 해상도 사용.")
+            try:
+                pipe = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=10**8)
+                while self.running:
+                    raw_frame = pipe.stdout.read(self.frame_size)
+                    if len(raw_frame) != self.frame_size:
+                        continue
+                    if self.frame_queue.full():
+                        try:
+                            self.frame_queue.get_nowait()  # 이전 프레임 제거
+                        except:
+                            pass
+                    self.frame_queue.put_nowait(raw_frame)
+            except Exception as e:
+                self.error_signal.emit(f"프레임 수신 오류: {e}")
+
+        Thread(target=reader_loop, daemon=True).start()
 
     def run(self):
         if self.model is None or self.model.model is None:
-            print("🚨 YOLO 모델이 로드되지 않음. 카메라 실행 중단.")
-            return
-
-        cmd = [
-            "ffmpeg",
-            "-rtsp_transport", "tcp",
-            "-fflags", "nobuffer",
-            "-flags", "low_delay",
-            "-an",
-            "-i", self.rtsp_url,
-            "-f", "image2pipe",
-            "-pix_fmt", "bgr24",
-            "-vcodec", "rawvideo",
-            "-"
-        ]
-
-        try:
-            pipe = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=10**8)
-        except Exception as e:
-            print(f"🚨 ffmpeg 실행 실패: {e}")
-            self.error_signal.emit(f"ffmpeg 실행 실패: {e}")
             return
 
         self.running = True
+        self.start_frame_reader()
         frame_count = 0
 
         while self.running:
             try:
-                self.frame_start_time = time.time()
-
-                # 🔄 오래된 프레임 4개 버리기 → 최신 프레임만 처리
-                for _ in range(4):
-                    pipe.stdout.read(self.frame_size)
-                raw_frame = pipe.stdout.read(self.frame_size)
-
-                if len(raw_frame) != self.frame_size:
-                    raise RuntimeError("프레임 크기 불일치 또는 스트림 중단")
-
+                raw_frame = self.frame_queue.get(timeout=2)
                 frame = np.frombuffer(raw_frame, np.uint8).reshape((self.height, self.width, 3))
-                self.model.change_fps(self.fps)
 
-                try:
-                    result_img = self.model.model_run(frame, self.telegram_flag, self.skeleton_visualize_flag)
-                except Exception as e:
-                    print(f"AI 모델 실행 오류: {e}")
-                    result_img = frame
+                start_time = time.time()
 
-                gc.collect()
+                result_img = self.model.model_run(frame, self.telegram_flag, self.skeleton_visualize_flag)
 
-                # PyQt 표시용 리사이즈 및 변환
-                resized_frame = cv2.resize(result_img, (400, 300))
-                rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
-                h, w, ch = rgb_frame.shape
-                bytes_per_line = ch * w
-                qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
-                pixmap = QPixmap.fromImage(qt_image)
+                resized = cv2.resize(result_img, (400, 300))
+                rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+                h, w, ch = rgb.shape
+                image = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888)
+                pixmap = QPixmap.fromImage(image)
 
-                # FPS 보정
-                processing_time = time.time() - self.frame_start_time
-                actual_fps = 1.0 / processing_time if processing_time > 0 else self.fps
-                self.model.adjust_tracking_threshold(actual_fps)
+                fps_actual = 1.0 / (time.time() - start_time + 1e-6)
+                self.model.adjust_tracking_threshold(fps_actual)
 
                 self.frame_signal.emit(pixmap, True)
 
@@ -182,28 +161,28 @@ class CameraThread(QThread):
                     frame_count = 0
                     time.sleep(1)
 
+                gc.collect()
+
+            except Empty:
+                self.send_black_frame()
             except Exception as e:
-                print(f"[ERROR] 카메라 스레드 오류: {e}")
+                print(f"[카메라 처리 오류] {e}")
                 self.send_black_frame()
                 time.sleep(1)
 
-        pipe.terminate()
-
     def send_black_frame(self):
-        """Send a black frame with a 'Camera Unavailable' message."""
-        black_image = QImage(400, 300, QImage.Format_RGB888)
-        black_image.fill(QColor('black'))
-        painter = QPainter(black_image)
+        black = QImage(400, 300, QImage.Format_RGB888)
+        black.fill(QColor('black'))
+        painter = QPainter(black)
         painter.setPen(QColor('white'))
-        painter.setFont(painter.font())
-        painter.drawText(black_image.rect(), Qt.AlignCenter, "카메라 연결 실패")
+        painter.drawText(black.rect(), Qt.AlignCenter, "카메라 연결 실패")
         painter.end()
-        black_pixmap = QPixmap.fromImage(black_image)
-        self.frame_signal.emit(black_pixmap, False)
+        self.frame_signal.emit(QPixmap.fromImage(black), False)
 
     def stop(self):
         self.running = False
         self.wait()
+
 
 
 # class CameraThread(QThread): # rtsp 방식으로 변경 필요
