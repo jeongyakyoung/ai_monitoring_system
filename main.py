@@ -34,7 +34,12 @@ class CameraThread(QThread): # rtsp 방식으로 변경 필요
 
     def __init__(self, port, ai_conf, tr_th, messenger):
         super().__init__()
-        self.port = port # IDIS 카메라 예시: "rtsp://admin:1234@192.168.0.101:554/trackID=2"
+        gst_str = (
+            'rtspsrc location=rtsp://admin:1234@192.168.0.100:554/media/video2 latency=50 ! '
+            'rtph264depay ! h264parse ! v4l2h264dec ! videoconvert ! appsink'
+        )
+
+        self.port = gst_str # IDIS 카메라 예시: "rtsp://admin:1234@192.168.0.101:554/trackID=2"
         self.running = False
         self.cap = None
         self.fps = 30
@@ -63,7 +68,7 @@ class CameraThread(QThread): # rtsp 방식으로 변경 필요
         if self.model is None or self.model.model is None:
             print("🚨 YOLO 모델이 로드되지 않음. 카메라 실행 중단.")
             return
-        self.cap = cv2.VideoCapture(self.port)
+        self.cap = cv2.VideoCapture(self.port, cv2.CAP_GSTREAMER)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             
         if not self.cap.isOpened():
