@@ -46,6 +46,15 @@ import gc
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
 from PyQt5.QtGui import QImage, QPixmap, QColor, QPainter
 
+import subprocess
+import numpy as np
+import cv2
+import time
+import gc
+
+from PyQt5.QtCore import QThread, pyqtSignal, Qt
+from PyQt5.QtGui import QImage, QPixmap, QColor, QPainter
+
 class CameraThread(QThread):
     frame_signal = pyqtSignal(QPixmap, bool)
     error_signal = pyqtSignal(str)
@@ -109,6 +118,9 @@ class CameraThread(QThread):
         cmd = [
             "ffmpeg",
             "-rtsp_transport", "tcp",
+            "-fflags", "nobuffer",
+            "-flags", "low_delay",
+            "-an",
             "-i", self.rtsp_url,
             "-f", "image2pipe",
             "-pix_fmt", "bgr24",
@@ -130,7 +142,11 @@ class CameraThread(QThread):
             try:
                 self.frame_start_time = time.time()
 
+                # 🔄 오래된 프레임 4개 버리기 → 최신 프레임만 처리
+                for _ in range(4):
+                    pipe.stdout.read(self.frame_size)
                 raw_frame = pipe.stdout.read(self.frame_size)
+
                 if len(raw_frame) != self.frame_size:
                     raise RuntimeError("프레임 크기 불일치 또는 스트림 중단")
 
@@ -145,6 +161,7 @@ class CameraThread(QThread):
 
                 gc.collect()
 
+                # PyQt 표시용 리사이즈 및 변환
                 resized_frame = cv2.resize(result_img, (400, 300))
                 rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
                 h, w, ch = rgb_frame.shape
@@ -152,6 +169,7 @@ class CameraThread(QThread):
                 qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
                 pixmap = QPixmap.fromImage(qt_image)
 
+                # FPS 보정
                 processing_time = time.time() - self.frame_start_time
                 actual_fps = 1.0 / processing_time if processing_time > 0 else self.fps
                 self.model.adjust_tracking_threshold(actual_fps)
