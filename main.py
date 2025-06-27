@@ -35,8 +35,8 @@ class CameraThread(QThread): # rtsp 방식으로 변경 필요
     def __init__(self, port, ai_conf, tr_th, messenger):
         super().__init__()
         gst_str = (
-            'rtspsrc location=rtsp://admin:1234@192.168.0.100:554/media/video2 latency=50 ! '
-            'rtph264depay ! h264parse ! v4l2h264dec ! videoconvert ! appsink'
+            'rtspsrc location=rtsp://admin:Cctv8324%21@192.168.1.101:554/trackID=1 latency=50 ! '
+            'rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! appsink'
         )
 
         self.port = gst_str # IDIS 카메라 예시: "rtsp://admin:1234@192.168.0.101:554/trackID=2"
