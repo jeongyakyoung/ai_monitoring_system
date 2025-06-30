@@ -952,5 +952,5 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     main_window = WindowClass()
-    main_window.show()
+    main_window.showFullScreen()
     app.exec_()
