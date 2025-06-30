@@ -404,9 +404,16 @@ class Detector:
             right_shoulder = keypoint.xy[0][6].to('cpu').numpy()
             right_shoulder_x, right_shoulder_y = int(right_shoulder[0]), int(right_shoulder[1])
             
+            left_wrist_conf = keypoint.conf[0][9].to('cpu').numpy()
+            left_wrist = keypoint.xy[0][9].to('cpu').numpy()
+            left_wrist_x, left_wrist_y = int(left_wrist[0]), int(left_wrist[1])
+            
+            right_wrist_conf = keypoint.conf[0][10].to('cpu').numpy()
+            right_wrist = keypoint.xy[0][10].to('cpu').numpy()
+            right_wrist_x, right_wrist_y = int(right_wrist[0]), int(right_wrist[1])
             
             if (nose_conf >= 0.5 and left_pelvis_conf >= 0.5 and right_pelvis_conf >= 0.5 and left_knee_conf >= 0.5 and right_knee_conf >= 0.5
-                and left_shoulder_conf >= 0.5 and right_shoulder_conf >= 0.5):
+                and left_shoulder_conf >= 0.5 and right_shoulder_conf >= 0.5 and left_wrist_conf >= 0.5 and right_wrist_conf>=0.5):
                 # self.draw_skeleton(self.origin_img, nose_x, nose_y, self.nose_bgr)
                 # self.draw_skeleton(self.origin_img, left_pelvis_x, left_pelvis_y, self.left_pelvis_bgr)
                 # self.draw_skeleton(self.origin_img, left_knee_x, left_knee_y, self.left_knee_bgr)
@@ -414,7 +421,7 @@ class Detector:
                 # self.draw_skeleton(self.origin_img, right_knee_x, right_knee_y, self.right_knee_bgr)
 
                 if (left_pelvis_y >= left_knee_y or right_pelvis_y >= right_knee_y or left_pelvis_y <= nose_y or right_pelvis_y <= nose_y or
-                    left_shoulder_y <= nose_y or right_shoulder_y <= nose_y):
+                    left_shoulder_y <= nose_y or right_shoulder_y <= nose_y or left_wrist_y >= left_knee_y or right_wrist_y >= right_knee_y):
                     if box.id is not None:
                         track_id = box.id[0].int().cpu().tolist()
                         self.tracker_update(frame, track_id, x1, y1, x2, y2, telegram_flag)
