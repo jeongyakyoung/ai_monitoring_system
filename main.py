@@ -487,7 +487,7 @@ class WindowClass(QMainWindow, form_class):
         self.api_token = self.telegram_winodw_class.get_telegram_api_label()
         self.chat_id = self.telegram_winodw_class.get_telegram_id_label()
         
-        self.warning_light = WarningLight()
+        self.warning_light = WarningLight('COM5')
         self.alarm_btn.clicked.connect(self.pause_alarm) # 라즈베리파이 경광등 종료
         
         if self.api_token and self.chat_id:

@@ -14,24 +14,58 @@ from threading import Lock
 import atexit
 import time
 import gc
+import serial
+import time
 #from  gpiozero import OutputDevice 라즈베리 파이용
 
+# class WarningLight_raspberry:
+#     def __new__(cls):
+#         if not hasattr(cls, 'instance'):
+#             cls.instance = super(WarningLight, cls).__new__(cls)
+#             cls._initialized = False
+#         return cls.instance
+    
+#     def __init__(self, pin_num=21):
+#         if self.__class__._initialized:
+#             return
+#         self.relay = OutputDevice(pin_num, active_high=True, initial_value=False) 라즈베리파이용
+#         self.__class__._initialized = True
+#         self._off_timer = None
+        
+#     def on(self, auto_off_seconds=30):
+#         self.relay.on()
+        
+#         if self._off_timer and self._off_timer.is_alive():
+#             self._off_timer.cancel()
+        
+#         self._off_timer = threading.Timer(auto_off_seconds, self.off)
+#         self._off_timer.start()
+    
+#     def off(self):
+#         if self._off_timer and self._off_timer.is_alive():
+#             self._off_timer.cancel()
+            
+#         self._off_timer = None
+#         self.relay.off()
+
 class WarningLight:
-    def __new__(cls):
+    def __new__(cls, *args, **kwargs):
         if not hasattr(cls, 'instance'):
             cls.instance = super(WarningLight, cls).__new__(cls)
             cls._initialized = False
         return cls.instance
     
-    def __init__(self, pin_num=21):
+    def __init__(self, com_port='COM5'):
         if self.__class__._initialized:
             return
-        self.relay = None#OutputDevice(pin_num, active_high=True, initial_value=False) 라즈베리파이용
+        ser = serial.Serial(com_port, 9600, timeout=1)
+        self.relay = ser
+        self.relay.write(bytes.fromhex('A0 01 00 A1')) # 켜져있음 끄기
         self.__class__._initialized = True
         self._off_timer = None
         
-    def on(self, auto_off_seconds=30):
-        self.relay.on()
+    def on(self, auto_off_seconds=5):
+        self.relay.write(bytes.fromhex('A0 01 01 A2'))
         
         if self._off_timer and self._off_timer.is_alive():
             self._off_timer.cancel()
@@ -44,8 +78,8 @@ class WarningLight:
             self._off_timer.cancel()
             
         self._off_timer = None
-        self.relay.off()
-        
+        self.relay.write(bytes.fromhex('A0 01 00 A1'))
+
 # Load the YOLO model
 class Messenger:
     _instance = None
