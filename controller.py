@@ -14,7 +14,7 @@ from threading import Lock
 import atexit
 import time
 import gc
-from  gpiozero import OutputDevice
+#from  gpiozero import OutputDevice 라즈베리 파이용
 
 class WarningLight:
     def __new__(cls):
@@ -26,7 +26,7 @@ class WarningLight:
     def __init__(self, pin_num=21):
         if self.__class__._initialized:
             return
-        self.relay = OutputDevice(pin_num, active_high=True, initial_value=False)
+        self.relay = None#OutputDevice(pin_num, active_high=True, initial_value=False) 라즈베리파이용
         self.__class__._initialized = True
         self._off_timer = None
         

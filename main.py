@@ -66,238 +66,241 @@ from queue import Queue, Empty
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
 from PyQt5.QtGui import QImage, QPixmap, QColor, QPainter
 
+
+# 라즈베리파이용 #
+# class CameraThread(QThread):
+#     frame_signal = pyqtSignal(QPixmap, bool)
+#     error_signal = pyqtSignal(str)
+
+#     def __init__(self, port, ai_conf, tr_th, messenger):
+#         super().__init__()
+
+#         self.rtsp_url = "rtsp://admin:Cctv8324%21@192.168.1.101:554/trackID=1" # 라즈베리파이용
+#         self.width = 640
+#         self.height = 360
+#         self.frame_size = self.width * self.height * 3
+
+#         self.fps = 30
+#         self.running = False
+#         self.frame_queue = Queue(maxsize=1)
+
+#         self.telegram_flag = True
+#         self.skeleton_visualize_flag = True
+#         self.messenger = messenger
+
+#         try:
+#             self.model = Detector(ai_conf, tr_th, self.fps)
+#             if self.model.model is None:
+#                 raise RuntimeError("YOLO 모델 로드 실패")
+#         except Exception as e:
+#             self.error_signal.emit(f"AI 모델 초기화 실패: {e}")
+#             self.model = None
+#             return
+
+#     def start_frame_reader(self):
+#         def reader_loop():
+#             cmd = [
+#                 "ffmpeg",
+#                 "-rtsp_transport", "tcp",
+#                 "-fflags", "nobuffer",
+#                 "-flags", "low_delay",
+#                 "-an",
+#                 "-i", self.rtsp_url,
+#                 "-vf", "scale=640:360",                # 해상도 축소 추가
+#                 "-f", "image2pipe",
+#                 "-pix_fmt", "bgr24",
+#                 "-vcodec", "rawvideo",
+#                 "-"
+#             ]
+#             try:
+#                 pipe = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=10**8)
+#                 while self.running:
+#                     raw_frame = pipe.stdout.read(self.frame_size)
+#                     if len(raw_frame) != self.frame_size:
+#                         continue
+#                     if self.frame_queue.full():
+#                         try:
+#                             self.frame_queue.get_nowait()  # 이전 프레임 제거
+#                         except:
+#                             pass
+#                     self.frame_queue.put_nowait(raw_frame)
+#             except Exception as e:
+#                 self.error_signal.emit(f"프레임 수신 오류: {e}")
+
+#         Thread(target=reader_loop, daemon=True).start()
+
+#     def run(self):
+#         if self.model is None or self.model.model is None:
+#             return
+
+#         self.running = True
+#         self.start_frame_reader() #라즈베리파이용
+#         frame_count = 0
+
+#         while self.running:
+#             try:
+#                 raw_frame = self.frame_queue.get(timeout=2)
+#                 frame = np.frombuffer(raw_frame, np.uint8).reshape((self.height, self.width, 3))
+
+#                 start_time = time.time()
+
+#                 result_img = self.model.model_run(frame, self.telegram_flag, self.skeleton_visualize_flag)
+
+#                 resized = cv2.resize(result_img, (400, 300))
+#                 rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+#                 h, w, ch = rgb.shape
+#                 image = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888)
+#                 pixmap = QPixmap.fromImage(image)
+
+#                 fps_actual = 1.0 / (time.time() - start_time + 1e-6)
+#                 self.model.adjust_tracking_threshold(fps_actual)
+
+#                 self.frame_signal.emit(pixmap, True)
+
+#                 frame_count += 1
+#                 if frame_count >= 5000:
+#                     self.model.reset_tracking()
+#                     frame_count = 0
+#                     time.sleep(1)
+
+#                 gc.collect()
+
+#             except Empty:
+#                 self.send_black_frame()
+#             except Exception as e:
+#                 print(f"[카메라 처리 오류] {e}")
+#                 self.send_black_frame()
+#                 time.sleep(1)
+
+#     def send_black_frame(self):
+#         black = QImage(400, 300, QImage.Format_RGB888)
+#         black.fill(QColor('black'))
+#         painter = QPainter(black)
+#         painter.setPen(QColor('white'))
+#         painter.drawText(black.rect(), Qt.AlignCenter, "카메라 연결 실패")
+#         painter.end()
+#         self.frame_signal.emit(QPixmap.fromImage(black), False)
+
+#     def stop(self):
+#         self.running = False
+#         self.wait()
+
+
+# 윈도우 용 #
 class CameraThread(QThread):
     frame_signal = pyqtSignal(QPixmap, bool)
     error_signal = pyqtSignal(str)
 
     def __init__(self, port, ai_conf, tr_th, messenger):
         super().__init__()
-
-        self.rtsp_url = "rtsp://admin:Cctv8324%21@192.168.1.101:554/trackID=1"
-        self.width = 640
-        self.height = 360
-        self.frame_size = self.width * self.height * 3
-
-        self.fps = 30
+        url = "rtsp://admin:Cctv8324%21@192.168.1.101:554/trackID=1"
+        
+        self.port = port # url # IDIS 카메라 예시: "rtsp://admin:1234@192.168.0.101:554/trackID=2"
         self.running = False
-        self.frame_queue = Queue(maxsize=1)
-
+        self.cap = None
+        self.fps = 30
+        self.frame_start_time = None
+        
         self.telegram_flag = True
         self.skeleton_visualize_flag = True
+        self.model = Detector(ai_conf, tr_th, self.fps)
+        
         self.messenger = messenger
-
+        
         try:
             self.model = Detector(ai_conf, tr_th, self.fps)
+            
+            # ✅ 모델이 None이면 실행 중지
             if self.model.model is None:
-                raise RuntimeError("YOLO 모델 로드 실패")
+                raise RuntimeError("🚨 AI 모델 초기화 실패! YOLO 모델이 로드되지 않았습니다.")
+            
         except Exception as e:
+            print(f"🚨 AI 모델 초기화 오류: {e}")
             self.error_signal.emit(f"AI 모델 초기화 실패: {e}")
             self.model = None
-            return
-
-    def start_frame_reader(self):
-        def reader_loop():
-            cmd = [
-                "ffmpeg",
-                "-rtsp_transport", "tcp",
-                "-fflags", "nobuffer",
-                "-flags", "low_delay",
-                "-an",
-                "-i", self.rtsp_url,
-                "-vf", "scale=640:360",                # 해상도 축소 추가
-                "-f", "image2pipe",
-                "-pix_fmt", "bgr24",
-                "-vcodec", "rawvideo",
-                "-"
-            ]
-            try:
-                pipe = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=10**8)
-                while self.running:
-                    raw_frame = pipe.stdout.read(self.frame_size)
-                    if len(raw_frame) != self.frame_size:
-                        continue
-                    if self.frame_queue.full():
-                        try:
-                            self.frame_queue.get_nowait()  # 이전 프레임 제거
-                        except:
-                            pass
-                    self.frame_queue.put_nowait(raw_frame)
-            except Exception as e:
-                self.error_signal.emit(f"프레임 수신 오류: {e}")
-
-        Thread(target=reader_loop, daemon=True).start()
-
+            return  # ✅ 초기화 실패 시 실행 중단
+            
     def run(self):
         if self.model is None or self.model.model is None:
+            print("🚨 YOLO 모델이 로드되지 않음. 카메라 실행 중단.")
+            return
+        self.cap = cv2.VideoCapture(self.port)
+        # self.cap = cv2.VideoCapture(self.port, cv2.CAP_GSTREAMER) # GSTREAMER는 라즈베리파이용
+        # self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            
+        if not self.cap.isOpened():
+            # If the camera is not available, send a black frame
+            self.send_black_frame()
             return
 
         self.running = True
-        self.start_frame_reader()
         frame_count = 0
-
+        
         while self.running:
             try:
-                raw_frame = self.frame_queue.get(timeout=2)
-                frame = np.frombuffer(raw_frame, np.uint8).reshape((self.height, self.width, 3))
-
-                start_time = time.time()
-
-                result_img = self.model.model_run(frame, self.telegram_flag, self.skeleton_visualize_flag)
-
-                resized = cv2.resize(result_img, (400, 300))
-                rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
-                h, w, ch = rgb.shape
-                image = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888)
-                pixmap = QPixmap.fromImage(image)
-
-                fps_actual = 1.0 / (time.time() - start_time + 1e-6)
-                self.model.adjust_tracking_threshold(fps_actual)
-
+                self.frame_start_time = time.time()
+                
+                ret, frame = self.cap.read()
+                if not ret:
+                    self.send_black_frame()
+                    break
+                
+                fps = self.cap.get(cv2.CAP_PROP_FPS)
+                self.model.change_fps(fps)
+                try:
+                    if self.model and hasattr(self.model, 'model_run'):
+                        result_img = self.model.model_run(frame, self.telegram_flag, self.skeleton_visualize_flag)
+                    else:
+                        print("AI 모델이 초기화되지 않았습니다.")
+                        result_img = frame
+                except Exception as e:
+                    print(f"AI 모델 실행 오류 발생: {(e)}")
+                    result_img = frame
+                    
+                gc.collect()
+                
+                resized_frame = cv2.resize(result_img, (400, 300))
+                rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
+                h, w, ch = rgb_frame.shape
+                bytes_per_line = ch * w
+                qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
+                pixmap = QPixmap.fromImage(qt_image)
+                
+                processing_time = time.time() - self.frame_start_time
+                actual_fps = 1.0 / processing_time if processing_time > 0 else fps
+            
+                self.model.adjust_tracking_threshold(actual_fps)
+                
                 self.frame_signal.emit(pixmap, True)
-
+                
                 frame_count += 1
-                if frame_count >= 5000:
+                if frame_count >= 5000 == 0:
                     self.model.reset_tracking()
                     frame_count = 0
                     time.sleep(1)
-
-                gc.collect()
-
-            except Empty:
-                self.send_black_frame()
+                    
             except Exception as e:
-                print(f"[카메라 처리 오류] {e}")
+                print(f"카메라 스레드 실행 중 오류 발생: {e}")
                 self.send_black_frame()
                 time.sleep(1)
-
+                
+        self.cap.release()
+        
     def send_black_frame(self):
-        black = QImage(400, 300, QImage.Format_RGB888)
-        black.fill(QColor('black'))
-        painter = QPainter(black)
+        """Send a black frame with a 'Camera Unavailable' message."""
+        black_image = QImage(400, 300, QImage.Format_RGB888)
+        black_image.fill(QColor('black'))
+        painter = QPainter(black_image)
         painter.setPen(QColor('white'))
-        painter.drawText(black.rect(), Qt.AlignCenter, "카메라 연결 실패")
+        painter.setFont(painter.font())
+        painter.drawText(black_image.rect(), Qt.AlignCenter, "카메라 연결 실패")
         painter.end()
-        self.frame_signal.emit(QPixmap.fromImage(black), False)
-
+        black_pixmap = QPixmap.fromImage(black_image)
+        self.frame_signal.emit(black_pixmap, False)
+        
     def stop(self):
         self.running = False
         self.wait()
-
-
-
-# class CameraThread(QThread): # rtsp 방식으로 변경 필요
-#     frame_signal = pyqtSignal(QPixmap, bool)
-#     error_signal = pyqtSignal(str)
-
-#     def __init__(self, port, ai_conf, tr_th, messenger):
-#         super().__init__()
-#         url = "rtsp://admin:Cctv8324%21@192.168.1.101:554/trackID=1"
-    
-#         self.port = url # IDIS 카메라 예시: "rtsp://admin:1234@192.168.0.101:554/trackID=2"
-#         self.running = False
-#         self.cap = None
-#         self.fps = 30
-#         self.frame_start_time = None
-        
-#         self.telegram_flag = True
-#         self.skeleton_visualize_flag = True
-#         self.model = Detector(ai_conf, tr_th, self.fps)
-        
-#         self.messenger = messenger
-        
-#         try:
-#             self.model = Detector(ai_conf, tr_th, self.fps)
-            
-#             # ✅ 모델이 None이면 실행 중지
-#             if self.model.model is None:
-#                 raise RuntimeError("🚨 AI 모델 초기화 실패! YOLO 모델이 로드되지 않았습니다.")
-            
-#         except Exception as e:
-#             print(f"🚨 AI 모델 초기화 오류: {e}")
-#             self.error_signal.emit(f"AI 모델 초기화 실패: {e}")
-#             self.model = None
-#             return  # ✅ 초기화 실패 시 실행 중단
-            
-#     def run(self):
-#         if self.model is None or self.model.model is None:
-#             print("🚨 YOLO 모델이 로드되지 않음. 카메라 실행 중단.")
-#             return
-#         self.cap = cv2.VideoCapture(self.port, cv2.CAP_GSTREAMER)
-#         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            
-#         if not self.cap.isOpened():
-#             # If the camera is not available, send a black frame
-#             self.send_black_frame()
-#             return
-
-#         self.running = True
-#         frame_count = 0
-        
-#         while self.running:
-#             try:
-#                 self.frame_start_time = time.time()
-                
-#                 ret, frame = self.cap.read()
-#                 if not ret:
-#                     self.send_black_frame()
-#                     break
-                
-#                 fps = self.cap.get(cv2.CAP_PROP_FPS)
-#                 self.model.change_fps(fps)
-#                 try:
-#                     if self.model and hasattr(self.model, 'model_run'):
-#                         result_img = self.model.model_run(frame, self.telegram_flag, self.skeleton_visualize_flag)
-#                     else:
-#                         print("AI 모델이 초기화되지 않았습니다.")
-#                         result_img = frame
-#                 except Exception as e:
-#                     print(f"AI 모델 실행 오류 발생: {(e)}")
-#                     result_img = frame
-                    
-#                 gc.collect()
-                
-#                 resized_frame = cv2.resize(result_img, (400, 300))
-#                 rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
-#                 h, w, ch = rgb_frame.shape
-#                 bytes_per_line = ch * w
-#                 qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
-#                 pixmap = QPixmap.fromImage(qt_image)
-                
-#                 processing_time = time.time() - self.frame_start_time
-#                 actual_fps = 1.0 / processing_time if processing_time > 0 else fps
-            
-#                 self.model.adjust_tracking_threshold(actual_fps)
-                
-#                 self.frame_signal.emit(pixmap, True)
-                
-#                 frame_count += 1
-#                 if frame_count >= 5000 == 0:
-#                     self.model.reset_tracking()
-#                     frame_count = 0
-#                     time.sleep(1)
-                    
-#             except Exception as e:
-#                 print(f"카메라 스레드 실행 중 오류 발생: {e}")
-#                 self.send_black_frame()
-#                 time.sleep(1)
-                
-#         self.cap.release()
-        
-#     def send_black_frame(self):
-#         """Send a black frame with a 'Camera Unavailable' message."""
-#         black_image = QImage(400, 300, QImage.Format_RGB888)
-#         black_image.fill(QColor('black'))
-#         painter = QPainter(black_image)
-#         painter.setPen(QColor('white'))
-#         painter.setFont(painter.font())
-#         painter.drawText(black_image.rect(), Qt.AlignCenter, "카메라 연결 실패")
-#         painter.end()
-#         black_pixmap = QPixmap.fromImage(black_image)
-#         self.frame_signal.emit(black_pixmap, False)
-        
-#     def stop(self):
-#         self.running = False
-#         self.wait()
 #--------------------------------------------------------------------------------------------#
 
     # def run(self): # 동영상파일 실행시(데모 버전)
