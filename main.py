@@ -28,6 +28,9 @@ form_telegram_window = uic.loadUiType(form_telegram)[0]
 form_model = resource_path('model_conf.ui')
 form_model_window = uic.loadUiType(form_model)[0]
 
+form_port = resource_path('relay_port.ui')
+form_port_window = uic.loadUiType(form_port)[0]
+
 import subprocess
 import numpy as np
 import cv2
@@ -434,6 +437,42 @@ class ModelwindowClass(QDialog, QWidget, form_model_window):
     def open(self):
         self.exec_()
 
+class RelayPortwindowClass(QDialog, QWidget, form_port_window): 
+    def __init__(self):
+        super(RelayPortwindowClass, self).__init__()
+        self.initUi()
+
+        self.port_num = ""
+
+        self.save_btn.clicked.connect(self.save_port_num)
+        self.setting = FileController()
+        self.json_data = self.setting.load_json()
+
+        self.set_relay_module_port_num()
+
+    def initUi(self):
+        self.setupUi(self)
+        self.setWindowTitle("릴레이 모듈 포트 번호 변경")
+    
+    def set_relay_module_port_num(self):
+        self.port_num = self.json_data['relay_module_port']
+        self.port_value.setText(self.port_num) # 값 설정
+
+    def save_popup(self):
+        QMessageBox.information(self, "OK", "포트 변경 완료")
+
+    def save_port_num(self):
+        self.port_num =  self.port_value.text()
+        self.setting.revise_str_json('relay_module_port', str(self.port_num).upper())
+        self.save_popup()
+        #self.port_value.setText(text) # 값 설정
+
+    def get_port_num(self):
+        return self.port_num
+    
+    def open(self):
+        self.exec_()
+
 class CameraPreview(QWidget):
     closed = pyqtSignal(str)
     
@@ -483,13 +522,19 @@ class WindowClass(QMainWindow, form_class):
         self.model_window_class = ModelwindowClass()
         self.ai_model_conf_btn.clicked.connect(self.open_model_conf_dialog)
         
+        self.relay_port_window_class = RelayPortwindowClass()
+
         self.messenger = Messenger()
         self.api_token = self.telegram_winodw_class.get_telegram_api_label()
         self.chat_id = self.telegram_winodw_class.get_telegram_id_label()
         
-        self.warning_light = WarningLight('COM5')
+        self.change_relay_port_btn.clicked.connect(self.open_relay_port_dialog)
+
+        self.warning_light = WarningLight(self.json_data['relay_module_port'])
+
         self.alarm_btn.clicked.connect(self.pause_alarm) # 라즈베리파이 경광등 종료
-        
+        self.alarm_test_btn.clicked.connect(self.test_alarm)
+
         if self.api_token and self.chat_id:
             self.messenger.set_telegram(self.api_token, self.chat_id)
             
@@ -515,11 +560,17 @@ class WindowClass(QMainWindow, form_class):
         self.current_col = 0
         self.max_cols = 3
         
+        self.relay_module_port_num = self.json_data['relay_module_port']
+
         self.selected_camera = None
         
         self.init_camera_list()
         self.check_telegram_info()
     
+    def test_alarm(self):
+        self.warning_light.on(auto_off_seconds=5)
+        QMessageBox.information(self, "경보 테스트", "경보 실행 완료")
+
     def pause_alarm(self):
         self.warning_light.off()
         QMessageBox.information(self, "경보", "경보 종료")
@@ -934,6 +985,11 @@ class WindowClass(QMainWindow, form_class):
         self.chat_id = self.telegram_winodw_class.get_telegram_id_label()
         self.messenger.set_telegram(self.api_token, self.chat_id)
         self.check_telegram_info()
+    
+    def open_relay_port_dialog(self):
+        self.relay_port_window_class.open()
+        self.relay_module_port_num = self.relay_port_window_class.get_port_num()
+        self.warning_light.change_port(self.relay_module_port_num)
 
     def update_frame(self, camera_name, pixmap, available):
         if camera_name not in self.video_labels:

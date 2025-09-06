@@ -14,6 +14,7 @@ class FileController:
             "ai_model_conf": 0.7,
             "tracking_th": 3,
             "camera_list": {},
+            "relay_module_port": "COM5",
         }
         
         if not os.path.isfile(self.path):

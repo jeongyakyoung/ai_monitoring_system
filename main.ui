@@ -38,7 +38,7 @@
               </font>
              </property>
              <property name="text">
-              <string>Copyright 2025. 정약용 펀그라운드 all rights reserved</string>
+              <string>Copyright 2025. 남양주도시공사 all rights reserved</string>
              </property>
              <property name="alignment">
               <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -59,8 +59,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>1131</width>
-                <height>689</height>
+                <width>1130</width>
+                <height>702</height>
                </rect>
               </property>
              </widget>
@@ -137,6 +137,7 @@
             </property>
             <property name="font">
              <font>
+              <pointsize>12</pointsize>
               <weight>75</weight>
               <bold>true</bold>
              </font>
@@ -174,12 +175,53 @@
             </property>
             <property name="font">
              <font>
+              <pointsize>12</pointsize>
               <weight>75</weight>
               <bold>true</bold>
              </font>
             </property>
             <property name="text">
              <string>카메라 추가</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="change_relay_port_btn">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>50</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>릴레이 모듈 포트 변경</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="alarm_test_btn">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>50</height>
+             </size>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>경보 테스트</string>
             </property>
            </widget>
           </item>
@@ -193,6 +235,7 @@
             </property>
             <property name="font">
              <font>
+              <pointsize>12</pointsize>
               <weight>75</weight>
               <bold>true</bold>
              </font>
@@ -370,7 +413,7 @@
      <x>0</x>
      <y>0</y>
      <width>1631</width>
-     <height>31</height>
+     <height>26</height>
     </rect>
    </property>
   </widget>

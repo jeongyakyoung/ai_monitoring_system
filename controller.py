@@ -58,8 +58,7 @@ class WarningLight:
     def __init__(self, com_port='COM5'):
         if self.__class__._initialized:
             return
-        ser = serial.Serial(com_port, 9600, timeout=1)
-        self.relay = ser
+        self.relay = serial.Serial(com_port, 9600, timeout=1)
         self.relay.write(bytes.fromhex('A0 01 00 A1')) # 켜져있음 끄기
         self.__class__._initialized = True
         self._off_timer = None
@@ -78,6 +77,18 @@ class WarningLight:
             self._off_timer.cancel()
             
         self._off_timer = None
+        self.relay.write(bytes.fromhex('A0 01 00 A1'))
+
+    def change_port(self, port):
+        if self._off_timer and self._off_timer.is_alive():
+            self._off_timer.cancel()
+            
+        self._off_timer = None
+
+        if self.relay and self.relay.is_open:
+            self.relay.close()
+
+        self.relay = serial.Serial(port, 9600, timeout=1)
         self.relay.write(bytes.fromhex('A0 01 00 A1'))
 
 # Load the YOLO model

@@ -77,6 +77,32 @@ QPushButton#alarm_btn:hover {
     background-color: #f7053d;
 }
 
+/* 버튼 6 스타일 */
+QPushButton#alarm_test_btn {
+    font-family: 'Maple Story';
+    background-color: #2ef0ff;
+    font-size: 35px; /* 텍스트 크기 */
+    border-radius: 10px solid #31ceff;
+    padding: 10px;
+}
+
+QPushButton#alarm_test_btn:hover {
+    background-color: #1d90ff;
+}
+
+/* 버튼 7 스타일 */
+QPushButton#change_relay_port_btn {
+    font-family: 'Maple Story';
+    background-color: #ffce86;
+    font-size: 35px; /* 텍스트 크기 */
+    border-radius: 10px solid #ffbd72;
+    padding: 10px;
+}
+
+QPushButton#change_relay_port_btn:hover {
+    background-color: #ff8608;
+}
+
 QGroupBox#groupBox_main {
     font-family: 'Maple Story';
     border: 2px dashed  #3498db; /* 파란 테두리 */
