@@ -531,7 +531,9 @@ class WindowClass(QMainWindow, form_class):
         self.change_relay_port_btn.clicked.connect(self.open_relay_port_dialog)
 
         self.warning_light = WarningLight(self.json_data['relay_module_port'])
-
+        if self.warning_light is None:
+            QMessageBox.warning(self, "OK", "경광등 포트를 확인 해 주세요.")
+        
         self.alarm_btn.clicked.connect(self.pause_alarm) # 라즈베리파이 경광등 종료
         self.alarm_test_btn.clicked.connect(self.test_alarm)
 

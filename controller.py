@@ -58,38 +58,50 @@ class WarningLight:
     def __init__(self, com_port='COM5'):
         if self.__class__._initialized:
             return
-        self.relay = serial.Serial(com_port, 9600, timeout=1)
-        self.relay.write(bytes.fromhex('A0 01 00 A1')) # 켜져있음 끄기
-        self.__class__._initialized = True
-        self._off_timer = None
-        
+        try:
+            self.relay = serial.Serial(com_port, 9600, timeout=1)
+            self.relay.write(bytes.fromhex('A0 01 00 A1')) # 켜져있음 끄기
+            self.__class__._initialized = True
+            self._off_timer = None
+        except:
+            return None
+
     def on(self, auto_off_seconds=5):
-        self.relay.write(bytes.fromhex('A0 01 01 A2'))
-        
-        if self._off_timer and self._off_timer.is_alive():
-            self._off_timer.cancel()
-        
-        self._off_timer = threading.Timer(auto_off_seconds, self.off)
-        self._off_timer.start()
+        try:
+            self.relay.write(bytes.fromhex('A0 01 01 A2'))
+            
+            if self._off_timer and self._off_timer.is_alive():
+                self._off_timer.cancel()
+            
+            self._off_timer = threading.Timer(auto_off_seconds, self.off)
+            self._off_timer.start()
+        except:
+            print("relay port 정의 필요")
     
     def off(self):
-        if self._off_timer and self._off_timer.is_alive():
-            self._off_timer.cancel()
-            
-        self._off_timer = None
-        self.relay.write(bytes.fromhex('A0 01 00 A1'))
+        try:
+            if self._off_timer and self._off_timer.is_alive():
+                self._off_timer.cancel()
+                
+            self._off_timer = None
+            self.relay.write(bytes.fromhex('A0 01 00 A1'))
+        except:
+            print("relay port 정의 필요")
 
     def change_port(self, port):
-        if self._off_timer and self._off_timer.is_alive():
-            self._off_timer.cancel()
-            
-        self._off_timer = None
+        try:
+            if self._off_timer and self._off_timer.is_alive():
+                self._off_timer.cancel()
+                
+            self._off_timer = None
 
-        if self.relay and self.relay.is_open:
-            self.relay.close()
+            if self.relay and self.relay.is_open:
+                self.relay.close()
 
-        self.relay = serial.Serial(port, 9600, timeout=1)
-        self.relay.write(bytes.fromhex('A0 01 00 A1'))
+            self.relay = serial.Serial(port, 9600, timeout=1)
+            self.relay.write(bytes.fromhex('A0 01 00 A1'))
+        except:
+            print("relay port 정의 필요")
 
 # Load the YOLO model
 class Messenger:
