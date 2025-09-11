@@ -1013,5 +1013,7 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     main_window = WindowClass()
-    main_window.showFullScreen()
+    main_window.setWindowState(Qt.WindowMaximized)
+    main_window.show()
+    
     app.exec_()
