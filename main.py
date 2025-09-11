@@ -691,7 +691,7 @@ class WindowClass(QMainWindow, form_class):
             return
         
         # 카메라 포트 번호 입력 받기
-        port, ok = QInputDialog.getInt(self, "포트 설정", "카메라 포트 번호를 입력하세요:", min=0)
+        port, ok = QInputDialog.getText(self, "포트 설정", "카메라 주소를 입력하세요:")
         if not ok:
             return
             
@@ -810,7 +810,7 @@ class WindowClass(QMainWindow, form_class):
         if not self.selected_camera or self.selected_camera not in self.camera_threads:
             return
 
-        new_port, ok = QInputDialog.getInt(self, "포트 변경", "새로운 포트를 입력하세요:", min=0, max=65535)
+        new_port, ok = QInputDialog.getText(self, "카메라 주소 변경", "새로운 카메라 주소를 입력하세요:")
         if ok:
             camera_thread = self.camera_threads[self.selected_camera]
             camera_thread.stop()  # 기존 스레드 종료
