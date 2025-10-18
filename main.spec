@@ -3,7 +3,7 @@
 
 block_cipher = None
 
-datas = [('main.ui', '.'), ('model_conf.ui', '.'), ('telegram.ui', '.'), ('style/*', 'style/'), ('style/cursor/*', 'style/cursor'), ('style/font/*', 'style/font'), ('controller.py', '.'), ('setting.py', '.'), ('yolo11n-pose_safety.pt', '.'), ('ai.ico', '.'), ('C:/Users/funground/AppData/Local/Programs/Python/Python311/Lib/site-packages/ultralytics', 'ultralytics/'),]
+datas = [('main.ui', '.'), ('model_conf.ui', '.'), ('telegram.ui', '.'),('relay_port.ui', '.'), ('style/*', 'style/'), ('style/cursor/*', 'style/cursor'), ('style/font/*', 'style/font'), ('controller.py', '.'), ('setting.py', '.'), ('yolo11n-pose_safety.pt', '.'), ('ai.ico', '.'),]
 
 a = Analysis(
     ['main.py'],
