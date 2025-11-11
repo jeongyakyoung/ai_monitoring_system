@@ -15,6 +15,16 @@ import time
 import gc
 import subprocess
 
+os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+    "rtsp_transport;tcp|"        # UDP 대신 TCP로 전송(패킷손실 줄임)
+    "fflags;nobuffer|"           # 버퍼 최소화
+    "flags;low_delay|"           # 저지연
+    "probesize;32|"              # 분석 최소화
+    "analyzeduration;0|"         # 분석 최소화
+    "max_delay;0|"               # 최대 지연 0
+    "stimeout;2000000"           # 소켓 타임아웃 2초(μs 단위)
+)
+
 def resource_path(relative_path):
     base_path = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base_path, relative_path)
@@ -222,72 +232,178 @@ class CameraThread(QThread):
             self.error_signal.emit(f"AI 모델 초기화 실패: {e}")
             self.model = None
             return  # ✅ 초기화 실패 시 실행 중단
-            
+    
     def run(self):
         if self.model is None or self.model.model is None:
             print("🚨 YOLO 모델이 로드되지 않음. 카메라 실행 중단.")
             return
-        self.cap = cv2.VideoCapture(self.port)
-        # self.cap = cv2.VideoCapture(self.port, cv2.CAP_GSTREAMER) # GSTREAMER는 라즈베리파이용
-        # self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            
-        if not self.cap.isOpened():
-            # If the camera is not available, send a black frame
+
+        # --- 캡처 오픈 ---
+        self.cap = cv2.VideoCapture(self.port, cv2.CAP_FFMPEG)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+        def reopen():
+            # 재연결 헬퍼
+            try:
+                if self.cap:
+                    self.cap.release()
+            except: pass
+            time.sleep(0.2)
+            self.cap = cv2.VideoCapture(self.port, cv2.CAP_FFMPEG)
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+        # 최초 프레임 확인
+        for _ in range(8):  # 시작 시 버퍼 비우기
+            self.cap.grab()
+        ok, frame = self.cap.retrieve()
+        if not ok:
             self.send_black_frame()
             return
 
         self.running = True
         frame_count = 0
-        
+        consecutive_fail = 0
+
+        # 추론 스킵(지연 방지) — 필요 시 2~3으로 올리세요
+        INFER_EVERY = 2
+
         while self.running:
             try:
-                self.frame_start_time = time.time()
-                
-                ret, frame = self.cap.read()
-                if not ret:
+                loop_start = time.time()
+
+                # --- 오래된 프레임 버리고 최신만 디코딩 ---
+                for _ in range(5):  # 상황에 따라 3~8 조절
+                    self.cap.grab()
+                ok, frame = self.cap.retrieve()
+                if not ok or frame is None:
+                    consecutive_fail += 1
+                    if consecutive_fail >= 10:
+                        # 디코딩 에러가 반복되면 재연결
+                        reopen()
+                        consecutive_fail = 0
                     self.send_black_frame()
-                    break
-                
-                fps = self.cap.get(cv2.CAP_PROP_FPS)
-                self.model.change_fps(fps)
-                try:
-                    if self.model and hasattr(self.model, 'model_run'):
+                    continue
+                else:
+                    consecutive_fail = 0
+
+                # --- FPS 변경 감지 시 모델에 전달(선택) ---
+                fps_prop = self.cap.get(cv2.CAP_PROP_FPS) or 0
+                if fps_prop > 0:
+                    self.model.change_fps(fps_prop)
+
+                # --- 추론 스킵으로 지연 억제 ---
+                if frame_count % INFER_EVERY == 0:
+                    try:
                         result_img = self.model.model_run(frame, self.telegram_flag, self.skeleton_visualize_flag)
-                    else:
-                        print("AI 모델이 초기화되지 않았습니다.")
+                    except Exception as e:
+                        print(f"AI 모델 실행 오류: {e}")
                         result_img = frame
-                except Exception as e:
-                    print(f"AI 모델 실행 오류 발생: {(e)}")
-                    result_img = frame
-                    
-                gc.collect()
-                
-                resized_frame = cv2.resize(result_img, (400, 300))
+                    last_result = result_img
+                else:
+                    # 직전 결과 재사용
+                    result_img = last_result if 'last_result' in locals() else frame
+
+                # --- 디스플레이 변환 ---
+                resized_frame = cv2.resize(result_img, (640, 360),interpolation=cv2.INTER_AREA)
                 rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
                 h, w, ch = rgb_frame.shape
-                bytes_per_line = ch * w
-                qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
+                qt_image = QImage(rgb_frame.data, w, h, ch * w, QImage.Format_RGB888)
                 pixmap = QPixmap.fromImage(qt_image)
-                
-                processing_time = time.time() - self.frame_start_time
-                actual_fps = 1.0 / processing_time if processing_time > 0 else fps
-            
-                self.model.adjust_tracking_threshold(actual_fps)
-                
                 self.frame_signal.emit(pixmap, True)
-                
+
+                # --- 실제 처리 FPS로 트래킹 임계값 보정 ---
+                proc_time = time.time() - loop_start
+                actual_fps = 1.0 / proc_time if proc_time > 0 else fps_prop
+                self.model.adjust_tracking_threshold(actual_fps)
+
+                # --- 주기적 트래킹 히스토리 리셋(슬립 금지!) ---
                 frame_count += 1
-                if frame_count >= 5000 == 0:
+                if frame_count >= 5000:
                     self.model.reset_tracking()
                     frame_count = 0
-                    time.sleep(1)
-                    
+
+                gc.collect()
+
             except Exception as e:
-                print(f"카메라 스레드 실행 중 오류 발생: {e}")
+                print(f"카메라 스레드 실행 오류: {e}")
                 self.send_black_frame()
-                time.sleep(1)
+                time.sleep(0.1)  # 짧게만
+
+        # 종료
+        try:
+            self.cap.release()
+        except: pass
+    
+    # def run(self):
+    #     if self.model is None or self.model.model is None:
+    #         print("🚨 YOLO 모델이 로드되지 않음. 카메라 실행 중단.")
+    #         return
+    #     self.cap = cv2.VideoCapture(self.port, cv2.CAP_FFMPEG)
+    #     self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    #     # self.cap = cv2.VideoCapture(self.port, cv2.CAP_GSTREAMER) # GSTREAMER는 라즈베리파이용
+    #     # self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        
+    #     for _ in range(5):
+    #         self.cap.grab()
+    #     ok, frame = self.cap.retrieve()
+
+    #     if not ok:
+    #         # If the camera is not available, send a black frame
+    #         self.send_black_frame()
+    #         return
+
+    #     self.running = True
+    #     frame_count = 0
+        
+    #     while self.running:
+    #         try:
+    #             self.frame_start_time = time.time()
                 
-        self.cap.release()
+    #             ret, frame = self.cap.read()
+    #             if not ret:
+    #                 self.send_black_frame()
+    #                 break
+                
+    #             fps = self.cap.get(cv2.CAP_PROP_FPS)
+    #             self.model.change_fps(fps)
+    #             try:
+    #                 if self.model and hasattr(self.model, 'model_run'):
+    #                     result_img = self.model.model_run(frame, self.telegram_flag, self.skeleton_visualize_flag)
+    #                 else:
+    #                     print("AI 모델이 초기화되지 않았습니다.")
+    #                     result_img = frame
+    #             except Exception as e:
+    #                 print(f"AI 모델 실행 오류 발생: {(e)}")
+    #                 result_img = frame
+                    
+    #             gc.collect()
+                
+    #             resized_frame = cv2.resize(result_img, (400, 300)) # 원래 코드는 result_img
+    #             rgb_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
+    #             h, w, ch = rgb_frame.shape
+    #             bytes_per_line = ch * w
+    #             qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
+    #             pixmap = QPixmap.fromImage(qt_image)
+                
+    #             processing_time = time.time() - self.frame_start_time
+    #             actual_fps = 1.0 / processing_time if processing_time > 0 else fps
+            
+    #             self.model.adjust_tracking_threshold(actual_fps)
+                
+    #             self.frame_signal.emit(pixmap, True)
+                
+    #             frame_count += 1
+    #             if frame_count >= 5000:
+    #                 self.model.reset_tracking()
+    #                 frame_count = 0
+                    
+                    
+    #         except Exception as e:
+    #             print(f"카메라 스레드 실행 중 오류 발생: {e}")
+    #             self.send_black_frame()
+    #             time.sleep(1)
+                
+    #     self.cap.release()
         
     def send_black_frame(self):
         """Send a black frame with a 'Camera Unavailable' message."""
